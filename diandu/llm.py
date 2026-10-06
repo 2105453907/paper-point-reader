@@ -14,8 +14,20 @@ import requests
 
 from .config import log_err
 
-BROWSER_UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-              "(KHTML, like Gecko) Chrome/126.0 Safari/537.36")
+BROWSER_UA = ("PaperPointReader/0.1.0 (Windows; +https://github.com/2105453907/"
+              "paper-point-reader)")
+
+
+def _headers(cfg):
+    h = {"Authorization": "Bearer " + cfg["api_key"],
+         "Content-Type": "application/json",
+         "User-Agent": BROWSER_UA}
+    extra = cfg.get("extra_headers")
+    if isinstance(extra, dict):
+        for k, v in extra.items():
+            if isinstance(k, str) and isinstance(v, (str, int, float)):
+                h[k] = str(v)
+    return h
 
 
 def has_image(msgs):
@@ -33,9 +45,7 @@ def chat_stream(cfg, msgs, on_delta, on_done, on_error):
 
     base = cfg["api_base"].rstrip("/")
     url = base + "/chat/completions"
-    headers = {"Authorization": "Bearer " + cfg["api_key"],
-               "Content-Type": "application/json",
-               "User-Agent": BROWSER_UA}
+    headers = _headers(cfg)
     start_model = cfg["vision_model"] if has_image(msgs) else cfg["text_model"]
 
     def run():
@@ -108,9 +118,7 @@ def test_api(cfg):
     try:
         r = requests.post(
             cfg["api_base"].rstrip("/") + "/chat/completions",
-            headers={"Authorization": "Bearer " + cfg["api_key"],
-                     "Content-Type": "application/json",
-                     "User-Agent": BROWSER_UA},
+            headers=_headers(cfg),
             json={"model": cfg["text_model"],
                   "messages": [{"role": "user", "content": "请只回复:OK"}]},
             timeout=90)
@@ -123,9 +131,7 @@ def test_api(cfg):
                       % cfg["fallback_model"])
                 r2 = requests.post(
                     cfg["api_base"].rstrip("/") + "/chat/completions",
-                    headers={"Authorization": "Bearer " + cfg["api_key"],
-                             "Content-Type": "application/json",
-                             "User-Agent": BROWSER_UA},
+                    headers=_headers(cfg),
                     json={"model": cfg["fallback_model"],
                           "messages": [{"role": "user", "content": "请只回复:OK"}]},
                     timeout=90)

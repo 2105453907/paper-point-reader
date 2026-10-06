@@ -62,6 +62,7 @@ python tests/test_mousehook.py  # 测试鼠标侧键钩子(Windows)
 |---|---|
 | `api_base` | OpenAI 兼容接口地址。DeepSeek:`https://api.deepseek.com/v1`;OpenAI:`https://api.openai.com/v1` |
 | `api_key` | 密钥(留空时自动读取环境变量 `ZHIPUAI_API_KEY` / `OPENAI_API_KEY`) |
+| `extra_headers` | 可选。附加请求头,某些网关需要。如 OpenCode Go 套餐端点要求 `{"x-opencode-session": "<任意稳定UUID>"}` |
 | `text_model` / `vision_model` | 划词用文本模型 / 圈选用视觉模型 |
 | `fallback_model` | 可选。主模型返回 402(余额不足)或免费层限制时自动降级到这个模型再试一次 |
 | `mouse_side1` / `mouse_side2` | 侧键功能:`region` / `text` / `none`(不拦截,还原原生功能) |

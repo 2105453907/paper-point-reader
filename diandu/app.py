@@ -158,6 +158,13 @@ def main(argv=None):
         except Exception:
             runtime.side = None
             log_err("创建相关小窗失败:\n" + traceback.format_exc())
+        try:
+            runtime.settings_win = webview.create_window(
+                "键位设置", html=webui.SETTINGS_HTML, js_api=runtime.api,
+                width=520, height=620, on_top=True, hidden=True, min_size=(440, 480))
+        except Exception:
+            runtime.settings_win = None
+            log_err("创建键位设置窗失败:\n" + traceback.format_exc())
 
     threading.Thread(target=inputs.hotkey_loop, args=(cfg,), daemon=True).start()
     threading.Thread(target=inputs.install_mouse_hooks, args=(cfg,), daemon=True).start()

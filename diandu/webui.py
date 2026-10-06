@@ -202,7 +202,8 @@ __THEME__
   <button class="tb" onclick="api('more_detail')" title="换更基础的方式再讲一遍">细讲</button>
   <button class="tb" onclick="api('read_paper')" title="拖入或选择论文,通读全文">通读</button>
   <button class="tb" onclick="api('toggle_side')" title="显示/隐藏相关小窗">相关</button>
-  <button class="tb ghost" onclick="api('open_config')" title="打开配置文件">⚙</button>
+  <button class="tb" onclick="api('open_settings')" title="键位设置 / 快捷键">⌨</button>
+  <button class="tb ghost" onclick="api('open_config')" title="打开配置文件 config.json">⚙</button>
   <button class="tb ghost" onclick="api('hide')" title="隐藏(Esc)">✕</button>
 </div>
 <div id="thumbbox"><img id="thumb" alt=""></div>
@@ -339,6 +340,162 @@ window.__pageReady = true;
 </body>
 </html>"""
 
+_SETTINGS_HTML = r"""<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<style>
+__THEME__
+  #bar{display:flex;align-items:center;gap:8px;padding:9px 12px;
+    background:linear-gradient(120deg,#0b3a8c,#1d4ed8 55%,#0ea5e9);color:#fff;
+    box-shadow:0 2px 12px rgba(11,58,140,.28);}
+  #sbrand{font-size:13px;font-weight:700;letter-spacing:.4px;}
+  #bar .sp{flex:1;}
+  #wrap{padding:14px 16px 22px;}
+  .sec{font-size:12.5px;font-weight:700;color:var(--brand-deep);margin:14px 0 8px;
+    border-left:3px solid var(--brand);padding-left:8px;}
+  .krow{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);
+    border-radius:10px;margin-bottom:8px;background:#fff;}
+  .krow .lab{flex:1;font-size:13px;}
+  .combo{font-family:Consolas,monospace;font-size:12px;background:#eef4ff;color:var(--brand-deep);
+    padding:3px 9px;border-radius:6px;border:1px solid #dbe7ff;}
+  .rec{border:none;border-radius:999px;background:#eef2f7;color:#334155;font-size:12px;
+    padding:5px 12px;cursor:pointer;min-width:64px;}
+  .rec:hover{background:#dbe7ff;}
+  .rec.on{background:#f59e0b;color:#fff;}
+  .mrow{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;
+    border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:#fff;font-size:13px;}
+  select{border:1px solid var(--line);border-radius:8px;padding:5px 8px;font-size:12.5px;
+    background:#fff;color:var(--ink);font-family:inherit;}
+  #hint{font-size:12px;color:var(--muted);line-height:1.8;margin-top:10px;}
+  #msg{font-size:12.5px;margin-top:8px;min-height:18px;color:#15803d;font-weight:600;}
+  #msg.bad{color:#b91c1c;}
+  .foot{margin-top:8px;}
+  .fbtn{border:none;border-radius:999px;background:#eef2f7;color:#334155;font-size:12.5px;
+    padding:7px 16px;cursor:pointer;font-family:inherit;}
+  .fbtn:hover{background:#dbe7ff;}
+</style>
+</head>
+<body>
+<div id="bar"><span id="sbrand">⌨ 键位设置</span><span class="sp"></span>
+<button class="tb" onclick="api('open_config')" title="直接编辑 config.json">config.json</button>
+<button class="tb ghost" onclick="api('settings_hide')" title="关闭(Esc)">✕</button></div>
+<div id="wrap">
+  <div class="sec">键盘快捷键</div>
+  <div id="rows"></div>
+  <div class="sec">鼠标侧键</div>
+  <div class="mrow"><span>侧键1(后退键)</span>
+    <select id="m1" onchange="setMouse('1', this.value)">
+      <option value="region">圈选讲解</option>
+      <option value="text">划词讲解</option>
+      <option value="none">不拦截(保留原生后退)</option>
+    </select></div>
+  <div class="mrow"><span>侧键2(前进键)</span>
+    <select id="m2" onchange="setMouse('2', this.value)">
+      <option value="region">圈选讲解</option>
+      <option value="text">划词讲解</option>
+      <option value="none">不拦截(保留原生前进)</option>
+    </select></div>
+  <div id="hint">修改即时生效,无需重启。点击「录制」后直接按下想用的组合键;建议带
+    Ctrl / Alt 或使用 F1–F12;Esc 取消录制。想手工编辑可点右上角 config.json。</div>
+  <div id="msg"></div>
+  <div class="foot"><button class="fbtn" onclick="resetAll()">恢复默认键位</button></div>
+</div>
+<script>
+function api(name){ try{ pywebview.api[name](); }catch(e){} }
+function esc(s){ return String(s == null ? '' : s)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+function msg(t, bad){
+  const m = document.getElementById('msg');
+  m.textContent = t || '';
+  m.className = bad ? 'bad' : '';
+}
+let rowsData = [];
+function render(rows, m1, m2){
+  if(rows){ rowsData = rows; }
+  document.getElementById('rows').innerHTML = rowsData.map(function(r){
+    return '<div class="krow"><span class="lab">' + esc(r.label) + '</span>'
+      + '<span class="combo">' + esc(r.combo) + '</span>'
+      + '<button class="rec" id="b-' + r.action + '" onclick="rec(\'' + r.action + '\')">录制</button></div>';
+  }).join('');
+  if(m1){ document.getElementById('m1').value = m1; }
+  if(m2){ document.getElementById('m2').value = m2; }
+}
+let recording = null;
+function rec(action){
+  if(recording === action){ stopRec(); msg('已取消录制'); return; }
+  recording = action;
+  const b = document.getElementById('b-' + action);
+  if(b){ b.textContent = '按下中…'; b.className = 'rec on'; }
+  msg('请按下新的组合键…(Esc 取消)');
+  try{ pywebview.api.begin_record(); }catch(e){}
+}
+function stopRec(){
+  if(recording){
+    const b = document.getElementById('b-' + recording);
+    if(b){ b.textContent = '录制'; b.className = 'rec'; }
+  }
+  recording = null;
+  try{ pywebview.api.cancel_record(); }catch(e){}
+}
+function buildCombo(e){
+  const mods = [];
+  if(e.ctrlKey){ mods.push('ctrl'); }
+  if(e.altKey){ mods.push('alt'); }
+  if(e.shiftKey){ mods.push('shift'); }
+  if(e.metaKey){ mods.push('windows'); }
+  let k = String(e.key || '').toLowerCase();
+  if(['control','alt','shift','meta'].indexOf(k) >= 0){ return ''; }
+  if(k === ' '){ k = 'space'; }
+  const map = {arrowup:'up', arrowdown:'down', arrowleft:'left', arrowright:'right',
+               pageup:'page up', pagedown:'page down'};
+  k = map[k] || k;
+  if(mods.length === 0 && !/^f([1-9]|1\d|2[0-4])$/.test(k)){ return ''; }
+  return mods.concat([k]).join('+');
+}
+window.addEventListener('keydown', function(e){
+  if(!recording){
+    if(e.key === 'Escape'){ try{pywebview.api.settings_hide();}catch(err){} }
+    return;
+  }
+  e.preventDefault();
+  e.stopPropagation();
+  if(e.key === 'Escape'){ stopRec(); msg('已取消录制'); return; }
+  const combo = buildCombo(e);
+  if(!combo){ msg('需要至少一个修饰键(或使用 F1–F24)', true); return; }
+  const action = recording;
+  recording = null;
+  pywebview.api.set_binding(action, combo).then(function(res){
+    const b = document.getElementById('b-' + action);
+    if(b){ b.textContent = '录制'; b.className = 'rec'; }
+    if(res && res.ok){
+      msg('✓ 已保存:' + res.combo + '(即时生效)');
+    } else {
+      msg('✗ ' + ((res && res.msg) || '保存失败,已还原旧键位'), true);
+      try{ pywebview.api.cancel_record(); }catch(err){}
+    }
+    render(res && res.rows ? res.rows : null);
+  });
+});
+function setMouse(side, mode){
+  pywebview.api.set_mouse(side, mode).then(function(res){
+    msg(res && res.ok ? '✓ 侧键设置已保存' : ('✗ ' + ((res && res.msg) || '保存失败')),
+        !(res && res.ok));
+    render(res && res.rows ? res.rows : null);
+  });
+}
+function resetAll(){
+  pywebview.api.reset_bindings().then(function(res){
+    msg('✓ 已恢复默认键位');
+    pywebview.api.get_bindings().then(function(d){ render(d.rows, d.mouse1, d.mouse2); });
+  });
+}
+function applyData(data){ render(data.rows, data.mouse1, data.mouse2); }
+window.__pageReady = true;
+</script>
+</body>
+</html>"""
+
 MAIN_HTML = (_MAIN_HTML
              .replace("__VENDOR__", _VENDOR)
              .replace("__THEME__", _THEME_CSS)
@@ -347,3 +504,4 @@ MAIN_HTML = (_MAIN_HTML
 SIDE_HTML = (_SIDE_HTML
              .replace("__VENDOR__", _VENDOR)
              .replace("__THEME__", _THEME_CSS)).replace("__RENDER_JS__", RENDER_JS)
+SETTINGS_HTML = _SETTINGS_HTML.replace("__THEME__", _THEME_CSS)

@@ -62,9 +62,60 @@ def _mouse_hook_proc(n_code, w_param, l_param):
     return _user32.CallNextHookEx(None, n_code, w_param, l_param)
 
 
-def install_mouse_hooks(cfg):
-    """按配置接管鼠标侧键;在独立线程安装并泵消息循环。"""
-    global _MouseProc_ref
+def _remove_all_hotkeys():
+    for fn in ("remove_all_hotkeys", "unhook_all_hotkeys", "clear_all_hotkeys"):
+        f = getattr(keyboard, fn, None)
+        if f:
+            try:
+                f()
+            except Exception:
+                pass
+            return
+
+
+def register_hotkeys(cfg):
+    """(重新)注册全部键盘热键,可在运行时调用以热更新键位。返回注册失败的动作名列表。"""
+    _remove_all_hotkeys()
+    failed = []
+
+    def add(combo, fn, name):
+        try:
+            keyboard.add_hotkey(combo, fn)
+        except Exception:
+            failed.append(name)
+            log_err("热键注册失败 %s=%s:\n%s" % (name, combo, traceback.format_exc()))
+
+    def trigger(flow):
+        def call():
+            if runtime.enabled["v"]:
+                threading.Thread(target=flow, args=(cfg,), daemon=True).start()
+        return call
+
+    add(cfg["hotkey_select_region"], trigger(actions.region_flow), "hotkey_select_region")
+    add(cfg["hotkey_copy_text"], trigger(actions.text_flow), "hotkey_copy_text")
+    add(cfg.get("hotkey_side_window", "ctrl+alt+s"),
+        lambda: threading.Thread(target=windows.toggle_side, daemon=True).start(),
+        "hotkey_side_window")
+    add(cfg.get("hotkey_toggle", "ctrl+alt+p"),
+        lambda: threading.Thread(target=trayicon.toggle_enabled, daemon=True).start(),
+        "hotkey_toggle")
+    add(cfg.get("hotkey_read_paper", "ctrl+alt+o"),
+        lambda: threading.Thread(target=document.drop_zone, args=(cfg,), daemon=True).start(),
+        "hotkey_read_paper")
+    add(cfg.get("hotkey_rebuild_tex", "ctrl+alt+l"),
+        lambda: threading.Thread(target=_rebuild_entry, args=(cfg,), daemon=True).start(),
+        "hotkey_rebuild_tex")
+    return failed
+
+
+def suspend_hotkeys():
+    """录制新键位期间临时移除全部热键,避免按到旧组合触发动作。"""
+    _remove_all_hotkeys()
+
+
+def rebuild_mouse_bindings(cfg):
+    """按当前配置重建侧键绑定。钩子事件实时读取该字典,无需重装钩子。"""
+    runtime.mouse_binding.clear()
     b1 = str(cfg.get("mouse_side1", "region")).lower()
     b2 = str(cfg.get("mouse_side2", "text")).lower()
     for xbtn, mode in ((1, b1), (2, b2)):
@@ -72,6 +123,12 @@ def install_mouse_hooks(cfg):
             runtime.mouse_binding[xbtn] = lambda: actions.region_flow(cfg)
         elif mode == "text":
             runtime.mouse_binding[xbtn] = lambda: actions.text_flow(cfg)
+
+
+def install_mouse_hooks(cfg):
+    """按配置接管鼠标侧键;在独立线程安装并泵消息循环。"""
+    global _MouseProc_ref
+    rebuild_mouse_bindings(cfg)
     if not runtime.mouse_binding:
         return
     _MouseProc_ref = MOUSE_HOOKPROC(_mouse_hook_proc)
@@ -86,30 +143,9 @@ def install_mouse_hooks(cfg):
 
 
 def hotkey_loop(cfg):
-    """注册键盘备用热键(圈选/划词/相关小窗/总开关)。"""
-    def trigger(flow):
-        def call():
-            if runtime.enabled["v"]:
-                threading.Thread(target=flow, args=(cfg,), daemon=True).start()
-        return call
-
+    """注册键盘备用热键(圈选/划词/相关小窗/总开关/通读/重建)。"""
     try:
-        keyboard.add_hotkey(cfg["hotkey_select_region"], trigger(actions.region_flow))
-        keyboard.add_hotkey(cfg["hotkey_copy_text"], trigger(actions.text_flow))
-        keyboard.add_hotkey(
-            cfg.get("hotkey_side_window", "ctrl+alt+s"),
-            lambda: threading.Thread(target=windows.toggle_side, daemon=True).start())
-        keyboard.add_hotkey(
-            cfg.get("hotkey_toggle", "ctrl+alt+p"),
-            lambda: threading.Thread(target=trayicon.toggle_enabled, daemon=True).start())
-        keyboard.add_hotkey(
-            cfg.get("hotkey_read_paper", "ctrl+alt+o"),
-            lambda: threading.Thread(target=document.drop_zone, args=(cfg,),
-                                     daemon=True).start())
-        keyboard.add_hotkey(
-            cfg.get("hotkey_rebuild_tex", "ctrl+alt+l"),
-            lambda: threading.Thread(target=_rebuild_entry, args=(cfg,),
-                                     daemon=True).start())
+        register_hotkeys(cfg)
     except Exception:
         log_err("热键注册失败:\n" + traceback.format_exc())
     while True:

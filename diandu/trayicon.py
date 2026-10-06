@@ -73,8 +73,10 @@ def make_tray(cfg):
         pystray.MenuItem("显示窗口", toggle_window, default=True),
         pystray.MenuItem("通读论文(拖入 / 选择文件)…", read_paper),
         pystray.MenuItem("重建为 LaTeX 并编译(选择 PDF)…", rebuild_tex),
+        pystray.MenuItem("键位设置…", lambda *a: threading.Thread(
+            target=windows.show_settings, daemon=True).start()),
         pystray.MenuItem("打开相关小窗", lambda *a: (windows.side_render(), windows.show_side())),
-        pystray.MenuItem("打开设置", lambda *a: _startfile(config.CONFIG_PATH)),
+        pystray.MenuItem("打开 config.json", lambda *a: _startfile(config.CONFIG_PATH)),
         pystray.MenuItem("打开历史记录", lambda *a: (os.makedirs(config.HISTORY_DIR, exist_ok=True),
                                                      _startfile(config.HISTORY_DIR))),
         pystray.MenuItem("退出", lambda icon, item: (icon.stop(), os._exit(0))),

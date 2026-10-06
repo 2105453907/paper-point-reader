@@ -185,6 +185,38 @@ def hide_side():
         runtime.side_visible["v"] = False
 
 
+# ---------------------------------------------------------------- 键位设置窗
+
+def show_settings():
+    if runtime.settings_win is None or not runtime.webview_ok["v"]:
+        popup_new_query(APP_NAME, "")
+        popup_update("WebView2 不可用,无法打开键位设置。", True)
+        return
+    try:
+        runtime.ready.wait(15)
+        wait_win_ready(runtime.settings_win)
+        data = json.dumps(runtime.api.get_bindings(), ensure_ascii=True)
+        v, err = eval_safe(runtime.settings_win,
+                           "(function(){ applyData(%s); return 'ok'; })()" % data)
+        if err is not None or v != "ok":
+            log_err("键位设置窗口写入失败: %s" % err)
+        sw, sh = win32util.screen_size()
+        w, h = 520, 620
+        runtime.settings_win.move(max(0, (sw - w) // 2), max(50, (sh - h) // 2 - 40))
+        runtime.settings_win.show()
+    except Exception:
+        log_err("show_settings:\n" + traceback.format_exc())
+
+
+def hide_settings():
+    if runtime.settings_win is None:
+        return
+    try:
+        runtime.settings_win.hide()
+    except Exception:
+        pass
+
+
 def toggle_side():
     if runtime.side is None or not runtime.webview_ok["v"]:
         popup_new_query("相关小窗", "")

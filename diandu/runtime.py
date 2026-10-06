@@ -5,6 +5,7 @@ import threading
 
 win = None          # 主讲解弹窗 (webview.Window)
 side = None         # 相关小窗 (webview.Window)
+settings_win = None # 键位设置窗 (webview.Window)
 api = None          # JS 桥 (bridge.Api)
 
 ready = threading.Event()        # webview GUI 循环已启动

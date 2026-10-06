@@ -64,26 +64,52 @@ def drop_zone(cfg):
 
     root = TkinterDnD.Tk()
     root.title("投递论文")
-    w, h = 400, 220
+    W, H = 460, 268
     sw, sh = win32util.screen_size()
-    root.geometry("%dx%d+%d+%d" % (w, h, (sw - w) // 2, (sh - h) // 2))
+    root.geometry("%dx%d+%d+%d" % (W, H, (sw - W) // 2, (sh - H) // 2))
     root.attributes("-topmost", True)
-    root.configure(bg="#1e40af")
-    tk.Label(root, text="📄 把论文拖到这里", bg="#1e40af", fg="white",
-             font=("Microsoft YaHei", 17, "bold")).pack(pady=(36, 6))
-    tk.Label(root, text="支持 PDF / .tex / .md / .txt · 拖入后自动通读全文",
-             bg="#1e40af", fg="#bfdbfe", font=("Microsoft YaHei", 10)).pack()
-    row = tk.Frame(root, bg="#1e40af")
-    row.pack(pady=20)
+    root.configure(bg="#0b3a8c")
 
-    def choose():
-        root.destroy()
-        read_paper_dialog(cfg)
+    cv = tk.Canvas(root, width=W, height=H, highlightthickness=0, bg="#0b3a8c")
+    cv.pack(fill="both", expand=True)
 
-    tk.Button(row, text="选择文件…", command=choose, relief="flat", bg="#3b82f6", fg="white",
-              font=("Microsoft YaHei", 10), padx=14, pady=4).pack(side="left", padx=8)
-    tk.Button(row, text="取消", command=root.destroy, relief="flat", bg="#475569", fg="white",
-              font=("Microsoft YaHei", 10), padx=14, pady=4).pack(side="left", padx=8)
+    # 深海蓝 -> 亮蓝 垂直渐变
+    c1, c2 = (11, 58, 140), (29, 78, 216)
+    for y in range(H):
+        t = y / max(1, H - 1)
+        cv.create_line(0, y, W, y, fill="#%02x%02x%02x" % (
+            int(c1[0] + (c2[0] - c1[0]) * t),
+            int(c1[1] + (c2[1] - c1[1]) * t),
+            int(c1[2] + (c2[2] - c1[2]) * t)))
+
+    def round_rect(x1, y1, x2, y2, r, **kw):
+        pts = [x1 + r, y1, x2 - r, y1, x2, y1, x2, y1 + r, x2, y2 - r, x2, y2,
+               x2 - r, y2, x1 + r, y2, x1, y2, x1, y2 - r, x1, y1 + r, x1, y1]
+        return cv.create_polygon(pts, smooth=True, **kw)
+
+    pad = 22
+    card = round_rect(pad, pad, W - pad, H - pad, 20, fill="#ffffff", outline="")
+
+    cv.create_text(W / 2, pad + 52, text="🐋  鲸鲸报点读机 · 通读",
+                   font=("Microsoft YaHei UI", 13, "bold"), fill="#0b3a8c")
+    cv.create_text(W / 2, pad + 88, text="把论文拖到这里,自动通读全文",
+                   font=("Microsoft YaHei UI", 15, "bold"), fill="#1b2430")
+    cv.create_text(W / 2, pad + 118, text="支持 PDF / .tex / .md / .txt · 也可直接拖到桌面图标上",
+                   font=("Microsoft YaHei UI", 9), fill="#64748b")
+
+    def make_button(cx, cy, bw, bh, text, base, hover, fg, cmd):
+        x1, y1, x2, y2 = cx - bw / 2, cy - bh / 2, cx + bw / 2, cy + bh / 2
+        rr = round_rect(x1, y1, x2, y2, bh / 2, fill=base, outline="")
+        label = cv.create_text(cx, cy, text=text, font=("Microsoft YaHei UI", 10), fill=fg)
+        for item in (rr, label):
+            cv.tag_bind(item, "<Enter>", lambda e: cv.itemconfig(rr, fill=hover))
+            cv.tag_bind(item, "<Leave>", lambda e: cv.itemconfig(rr, fill=base))
+            cv.tag_bind(item, "<Button-1>", lambda e: cmd())
+
+    by = H - pad - 42
+    make_button(W / 2 - 62, by, 132, 34, "选择文件…", "#2563eb", "#1d4ed8", "#ffffff",
+                lambda: (root.destroy(), read_paper_dialog(cfg)))
+    make_button(W / 2 + 76, by, 96, 34, "取消", "#eef2f7", "#dbe3ee", "#475569", root.destroy)
 
     def on_drop(e):
         try:
@@ -97,6 +123,11 @@ def drop_zone(cfg):
 
     root.drop_target_register(DND_FILES)
     root.dnd_bind("<<Drop>>", on_drop)
+    try:   # 拖入时给卡片描边高亮
+        root.dnd_bind("<<DropEnter>>", lambda e: cv.itemconfig(card, outline="#0ea5e9", width=3))
+        root.dnd_bind("<<DropLeave>>", lambda e: cv.itemconfig(card, outline="", width=0))
+    except Exception:
+        pass
     root.bind("<Escape>", lambda e: root.destroy())
     root.mainloop()
 

@@ -15,11 +15,11 @@ from . import APP_NAME, runtime, win32util
 from .config import log_err
 
 WELCOME = (
-    "**点读机已就绪**\n\n"
+    "**🐋 鲸鲸报点读机已就绪**\n\n"
     "- 鼠标**侧键1**:圈选公式/图表/术语讲解;鼠标**侧键2**:划词讲解\n"
     "- `Ctrl+Alt+O` 通读整篇论文(拖文件进小窗) · `Ctrl+Alt+L` PDF 重建为 LaTeX\n"
     "- `Ctrl+Alt+S` 相关小窗 · `Ctrl+Alt+P` 启用/暂停 · `Esc` 隐藏本窗口\n\n"
-    "按一下侧键,或把论文拖到桌面图标上即可开始。"
+    "按一下侧键,或把论文拖到桌面图标上即可开始;讲解出来后,可以在底部输入框追问自己的问题。"
 )
 
 

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""在桌面创建「文献点读机」启动图标(Windows)。
+"""在桌面创建「鲸鲸报点读机」启动图标(Windows)。
 
 用法:
     python tools/make_shortcut.py
@@ -30,7 +30,7 @@ def make_lnk():
     root = _root()
     ws = win32com.client.Dispatch("WScript.Shell")
     desk = ws.SpecialFolders("Desktop")
-    path = os.path.join(desk, "文献点读机.lnk")
+    path = os.path.join(desk, "鲸鲸报点读机.lnk")
     lnk = ws.CreateShortcut(path)
     lnk.TargetPath = pythonw_path()
     lnk.Arguments = '"%s"' % os.path.join(root, "main.py")
@@ -38,14 +38,14 @@ def make_lnk():
     icon = os.path.join(root, "assets", "icon.ico")
     if os.path.exists(icon):
         lnk.IconLocation = icon
-    lnk.Description = "文献点读机 —— 哪里不会点哪里"
+    lnk.Description = "鲸鲸报点读机 —— 哪里不会点哪里"
     lnk.Save()
     return path
 
 
 def make_bat():
     root = _root()
-    path = os.path.join(_desktop_fallback(), "文献点读机.bat")
+    path = os.path.join(_desktop_fallback(), "鲸鲸报点读机.bat")
     with open(path, "w", encoding="utf-8") as f:
         f.write("@echo off\r\n")
         f.write('cd /d "%s"\r\n' % root)

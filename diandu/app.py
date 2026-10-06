@@ -33,8 +33,8 @@ def _notice_already_running():
     try:
         ctypes.windll.user32.MessageBoxTimeoutW(
             0,
-            "文献点读机已经在运行啦,请看系统托盘(蓝色“读”图标)。\n"
-            "想让它停下:托盘右键「启用点读机」取消勾选,或按 Ctrl+Alt+P。",
+            "%s已经在运行啦,请看系统托盘(蓝色“读”图标)。\n"
+            "想让它停下:托盘右键「启用点读机」取消勾选,或按 Ctrl+Alt+P。" % APP_NAME,
             APP_NAME,
             0x40 | 0x10000 | 0x40000,  # 信息图标 | 置前 | 置顶
             0, 8000)                   # 8 秒后自动消失,不挡事

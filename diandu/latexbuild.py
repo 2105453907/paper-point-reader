@@ -30,7 +30,7 @@ TEMPLATE = r"""\documentclass[10pt]{article}
 \setlength{\parindent}{0pt}
 \setlength{\parskip}{4pt}
 \title{%(title)s}
-\author{由「文献点读机」从 PDF 重建 \quad 源文件:%(src)s}
+\author{由「鲸鲸报点读机」从 PDF 重建 \quad 源文件:%(src)s}
 \date{%(date)s}
 \begin{document}
 \maketitle

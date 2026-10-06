@@ -11,7 +11,7 @@ import queue
 import time
 import traceback
 
-from . import runtime, win32util
+from . import APP_NAME, runtime, win32util
 from .config import log_err
 
 WELCOME = (
@@ -99,7 +99,7 @@ def force_show_popup(ensure_welcome=True):
             pass
         runtime.win_visible["v"] = False
     if ensure_welcome and not runtime.has_content["v"]:
-        popup_new_query("文献点读机", "")
+        popup_new_query(APP_NAME, "")
         popup_update(WELCOME, True)
     else:
         popup_show()
@@ -169,7 +169,7 @@ def run_fallback_gui(cfg):
     """WebView2 不可用时的纯 tkinter 兜底:显示纯文本讲解。"""
     import tkinter as tk
     root = tk.Tk()
-    root.title("文献点读机(基础模式)")
+    root.title(APP_NAME + "(基础模式)")
     root.geometry("%dx%d" % (int(cfg["popup_width"]), int(cfg["popup_height"])))
     tk.Label(root, text="WebView2 不可用,已切换基础模式:公式将以 LaTeX 源码显示",
              fg="#b91c1c", anchor="w").pack(fill="x", padx=6)
@@ -186,7 +186,7 @@ def run_fallback_gui(cfg):
                 elif kind == "new":
                     root.deiconify()
                     root.lift()
-                    root.title("文献点读机 · " + (a or ""))
+                    root.title(APP_NAME + " · " + (a or ""))
                     txt.delete("1.0", "end")
                 elif kind == "update":
                     txt.delete("1.0", "end")

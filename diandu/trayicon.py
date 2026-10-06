@@ -4,7 +4,7 @@ import os
 import threading
 import traceback
 
-from . import config, runtime, windows
+from . import APP_NAME, config, runtime, windows
 from .config import log_err
 
 
@@ -29,14 +29,14 @@ def toggle_enabled():
     if icon is not None:
         try:
             icon.icon = runtime.tray_icons["on" if on else "off"]
-            icon.title = "文献点读机" if on else "文献点读机(已暂停)"
+            icon.title = APP_NAME if on else APP_NAME + "(已暂停)"
         except Exception:
             log_err("更新托盘图标失败:\n" + traceback.format_exc())
         try:
             if on:
-                icon.notify("已启用:侧键1 圈选讲解,侧键2 划词讲解", "文献点读机")
+                icon.notify("已启用:侧键1 圈选讲解,侧键2 划词讲解", APP_NAME)
             else:
-                icon.notify("已暂停:鼠标侧键恢复后退/前进,讲解热键不再触发", "文献点读机")
+                icon.notify("已暂停:鼠标侧键恢复后退/前进,讲解热键不再触发", APP_NAME)
         except Exception:
             pass
     return on
@@ -80,7 +80,7 @@ def make_tray(cfg):
         pystray.MenuItem("退出", lambda icon, item: (icon.stop(), os._exit(0))),
     )
     try:
-        icon = pystray.Icon("paper_point_reader", runtime.tray_icons["on"], "文献点读机", menu)
+        icon = pystray.Icon("paper_point_reader", runtime.tray_icons["on"], APP_NAME, menu)
         runtime.tray_icon = icon
         icon.run_detached()
     except Exception:

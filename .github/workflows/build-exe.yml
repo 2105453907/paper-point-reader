@@ -29,7 +29,7 @@ jobs:
           --name PaperPointReader --icon assets/icon.ico
           --hidden-import webview.platforms.winforms
           --hidden-import webview.platforms.edgechromium
-          --collect-all clr_loader
+          --collect-all clr_loader --collect-all pypdfium2 --collect-all tkinterdnd2
           --exclude-module PyQt5 --exclude-module PyQt6 --exclude-module PySide2
           --exclude-module PySide6 --exclude-module qtpy
           --exclude-module webview.platforms.qt --exclude-module webview.platforms.cef
@@ -41,9 +41,9 @@ jobs:
 
       - name: Zip
         shell: pwsh
-        run: >
-          Compress-Archive -Path dist/PaperPointReader.exe, config.example.json, README.md
-          -DestinationPath PaperPointReader-win64.zip
+        run: |
+          Rename-Item dist/PaperPointReader.exe "鲸鲸报点读机.exe"
+          Compress-Archive -Path "dist/鲸鲸报点读机.exe", config.example.json, README.md -DestinationPath 鲸鲸报点读机-win64.zip
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

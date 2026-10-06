@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""文献点读机 —— 哪里不会点哪里。
+"""鲸鲸报点读机 —— 哪里不会点哪里。
 
 入口脚本,实现见 diandu/ 包(README.md 有完整说明)。
     python main.py --check      查看配置

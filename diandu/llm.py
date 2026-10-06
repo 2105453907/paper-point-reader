@@ -59,7 +59,8 @@ def chat_stream(cfg, msgs, on_delta, on_done, on_error):
                 with requests.post(url, headers=headers, json=payload,
                                    stream=True, timeout=(15, 600)) as r:
                     if r.status_code != 200:
-                        body = r.text[:400]
+                        # 不能用 r.text:无 charset 的响应会被 requests 按 Latin-1 解出乱码
+                        body = r.content.decode("utf-8", "replace")[:400]
                         low = body.lower()
                         can_fallback = (cfg.get("fallback_model")
                                         and cfg["fallback_model"] != model
@@ -82,8 +83,16 @@ def chat_stream(cfg, msgs, on_delta, on_done, on_error):
                                     "vision_model 换成你账号支持的模型)")
                         on_error("HTTP %s\n\n%s%s" % (r.status_code, body, hint))
                         return
-                    for line in r.iter_lines(decode_unicode=True):
-                        if not line or not line.startswith("data:"):
+                    # SSE 一律按 UTF-8 自己解:服务端 Content-Type 常不带 charset,
+                    # requests 会退到 ISO-8859-1,直接把中文全解成乱码
+                    for raw in r.iter_lines(decode_unicode=False):
+                        if not raw:
+                            continue
+                        try:
+                            line = raw.decode("utf-8")
+                        except Exception:
+                            continue
+                        if not line.startswith("data:"):
                             continue
                         data = line[len("data:"):].strip()
                         if data == "[DONE]":
@@ -125,7 +134,7 @@ def test_api(cfg):
         if r.status_code == 200:
             print("✓ 连通正常,模型回复:", r.json()["choices"][0]["message"]["content"][:50])
         else:
-            print("✗ HTTP %s: %s" % (r.status_code, r.text[:300]))
+            print("✗ HTTP %s: %s" % (r.status_code, r.content.decode("utf-8", "replace")[:300]))
             if r.status_code == 402 and cfg.get("fallback_model"):
                 print("(余额不足 —— 正式使用时会自动降级到 fallback_model=%s,再测一次)"
                       % cfg["fallback_model"])

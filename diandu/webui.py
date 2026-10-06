@@ -61,7 +61,9 @@ function math(el){
   try{ if(window.renderMathInElement){
     renderMathInElement(el,{delimiters:[
       {left:'$$',right:'$$',display:true},
-      {left:'$',right:'$',display:false}],throwOnError:false});
+      {left:'\\\\[',right:'\\\\]',display:true},
+      {left:'$',right:'$',display:false},
+      {left:'\\\\(',right:'\\\\)',display:false}],throwOnError:false});
   } }catch(e){}
 }
 function newQuery(badge, thumb){
@@ -163,7 +165,9 @@ function draw(){
   try{ if(window.renderMathInElement){
     renderMathInElement(list,{delimiters:[
       {left:'$$',right:'$$',display:true},
-      {left:'$',right:'$',display:false}],throwOnError:false});
+      {left:'\\\\[',right:'\\\\]',display:true},
+      {left:'$',right:'$',display:false},
+      {left:'\\\\(',right:'\\\\)',display:false}],throwOnError:false});
   } }catch(e){}
 }
 window.addEventListener('keydown', function(e){

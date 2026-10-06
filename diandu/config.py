@@ -19,6 +19,7 @@ CONFIG_PATH = os.path.join(APP_DIR, "config.json")
 CONFIG_EXAMPLE = os.path.join(APP_DIR, "config.example.json")
 HISTORY_DIR = os.path.join(APP_DIR, "history")
 ERR_LOG = os.path.join(APP_DIR, "err.log")
+DROP_FILE = os.path.join(APP_DIR, "drop.txt")   # 拖放投递:由新实例写给正在运行的实例
 
 DEFAULT_CONFIG = {
     "api_base": "https://open.bigmodel.cn/api/paas/v4",
@@ -31,9 +32,12 @@ DEFAULT_CONFIG = {
     "hotkey_copy_text": "ctrl+alt+e",
     "hotkey_side_window": "ctrl+alt+s",
     "hotkey_toggle": "ctrl+alt+p",
-    "hotkey_read_paper": "ctrl+alt+o",   # 通读整篇论文(选择文件)
-    "read_pages_per_request": 3,         # 论文通读:每次交给模型的 PDF 页数
-    "read_max_pages": 60,                # 论文通读:最多读多少页(0=全部)
+    "hotkey_read_paper": "ctrl+alt+o",   # 通读整篇论文(投递小窗)
+    "read_mode": "auto",                 # auto=能整篇装下就一次读,否则分批 | whole | batch
+    "read_context_tokens": 100000,       # 整篇读取的上下文上限(token 估算)
+    "read_image_scale": 1.8,             # PDF 页面渲染倍率(越大越清晰、token 越多)
+    "read_pages_per_request": 6,         # 分批模式的每批页数
+    "read_max_pages": 60,                # 最多读多少页(0=全部)
     "side_window": True,          # 启用「相关小窗」
     "auto_related": True,         # 讲解完成后自动补充"相关概念/前置知识/延伸方向"
     "popup_width": 580,

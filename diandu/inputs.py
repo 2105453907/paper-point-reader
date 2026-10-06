@@ -99,7 +99,7 @@ def hotkey_loop(cfg):
             lambda: threading.Thread(target=trayicon.toggle_enabled, daemon=True).start())
         keyboard.add_hotkey(
             cfg.get("hotkey_read_paper", "ctrl+alt+o"),
-            lambda: threading.Thread(target=document.read_paper_dialog, args=(cfg,),
+            lambda: threading.Thread(target=document.drop_zone, args=(cfg,),
                                      daemon=True).start())
     except Exception:
         log_err("热键注册失败:\n" + traceback.format_exc())

@@ -1,8 +1,14 @@
 # -*- coding: utf-8 -*-
 """论文通读:把整篇论文(PDF / LaTeX / Markdown / 文本)交给大模型,
-逐部分产出「公式清单 + 每个符号的含义 + 公式的作用」,最后汇总符号总表。
+产出「公式清单 + 每个符号的含义 + 公式的作用」,并汇总符号总表。
 
-PDF 走「整页截图 -> 视觉模型」路线:公式原样进模型,不依赖 PDF->LaTeX 转换;
+读取策略(config.read_mode):
+  auto : 估算 token 能装进 read_context_tokens(默认 10 万)就整篇一次读,
+         装不下自动分批(整篇读取若被模型拒绝也会自动降级分批);
+  whole: 总是整篇一次读;
+  batch: 总是分批读。
+
+PDF 走「整页截图 -> 视觉模型」,公式原样进模型,不依赖 PDF->LaTeX 转换;
 .tex 源码直读时公式质量最高(arXiv 等可直接下载源码)。
 """
 import base64
@@ -14,13 +20,17 @@ import time
 import traceback
 from datetime import datetime
 
-from . import actions, llm, prompts, runtime, windows
+from . import actions, llm, prompts, runtime, win32util, windows
 from .config import HISTORY_DIR, log_err
 
 SUPPORTED = (".pdf", ".tex", ".md", ".txt")
-BATCH_TIMEOUT = 900      # 单批最长等待(秒)
-TEXT_CHUNK_SIZE = 24000  # 文本分块大小(字符)
+BATCH_TIMEOUT = 1200     # 单次请求最长等待(秒);整篇一次读可能较久
+TEXT_CHUNK_SIZE = 24000  # 分批模式的文本块大小(字符)
 
+_READING = {"v": False}  # 通读进行中标记(避免并发通读互相打断)
+
+
+# ---------------------------------------------------------------- 入口
 
 def pick_file():
     """弹系统文件选择框(独立 tk 实例,可在工作线程中调用)。"""
@@ -43,24 +53,70 @@ def read_paper_dialog(cfg):
         read_document_flow(cfg, path)
 
 
-# ---------------------------------------------------------------- 文件解析
+def drop_zone(cfg):
+    """投递小窗:把论文文件拖进来即开始通读(拖放不可用时退回文件选择框)。"""
+    try:
+        from tkinterdnd2 import DND_FILES, TkinterDnD
+    except Exception:
+        read_paper_dialog(cfg)
+        return
+    import tkinter as tk
 
-def _pdf_chunks(path, cfg):
-    """PDF -> 分批的页面截图(每批 read_pages_per_request 页)。"""
+    root = TkinterDnD.Tk()
+    root.title("投递论文")
+    w, h = 400, 220
+    sw, sh = win32util.screen_size()
+    root.geometry("%dx%d+%d+%d" % (w, h, (sw - w) // 2, (sh - h) // 2))
+    root.attributes("-topmost", True)
+    root.configure(bg="#1e40af")
+    tk.Label(root, text="📄 把论文拖到这里", bg="#1e40af", fg="white",
+             font=("Microsoft YaHei", 17, "bold")).pack(pady=(36, 6))
+    tk.Label(root, text="支持 PDF / .tex / .md / .txt · 拖入后自动通读全文",
+             bg="#1e40af", fg="#bfdbfe", font=("Microsoft YaHei", 10)).pack()
+    row = tk.Frame(root, bg="#1e40af")
+    row.pack(pady=20)
+
+    def choose():
+        root.destroy()
+        read_paper_dialog(cfg)
+
+    tk.Button(row, text="选择文件…", command=choose, relief="flat", bg="#3b82f6", fg="white",
+              font=("Microsoft YaHei", 10), padx=14, pady=4).pack(side="left", padx=8)
+    tk.Button(row, text="取消", command=root.destroy, relief="flat", bg="#475569", fg="white",
+              font=("Microsoft YaHei", 10), padx=14, pady=4).pack(side="left", padx=8)
+
+    def on_drop(e):
+        try:
+            paths = root.tk.splitlist(e.data)
+        except Exception:
+            paths = [str(e.data).strip("{}")]
+        root.destroy()
+        if paths:
+            threading.Thread(target=read_document_flow, args=(cfg, paths[0]),
+                             daemon=True).start()
+
+    root.drop_target_register(DND_FILES)
+    root.dnd_bind("<<Drop>>", on_drop)
+    root.bind("<Escape>", lambda e: root.destroy())
+    root.mainloop()
+
+
+# ---------------------------------------------------------------- 文件解析与读取方案
+
+def _pdf_pages(path, cfg):
+    """渲染 PDF 页面为图片,并估算每页 token。返回 (pages, total, limit, thumb)。"""
     import pypdfium2 as pdfium
     doc = pdfium.PdfDocument(path)
-    total = len(doc)
-    max_pages = int(cfg.get("read_max_pages") or 0)
-    limit = min(total, max_pages) if max_pages > 0 else total
-    per = max(1, int(cfg.get("read_pages_per_request") or 3))
-    chunks = []
-    thumb = ""
-    for start in range(0, limit, per):
-        end = min(start + per, limit)
-        images = []
-        for i in range(start, end):
-            pil = doc[i].render(scale=2.0).to_pil().convert("RGB")
-            if i == 0 and not thumb:
+    try:
+        total = len(doc)
+        max_pages = int(cfg.get("read_max_pages") or 0)
+        limit = min(total, max_pages) if max_pages > 0 else total
+        scale = float(cfg.get("read_image_scale") or 1.8)
+        pages = []
+        thumb = ""
+        for i in range(limit):
+            pil = doc[i].render(scale=scale).to_pil().convert("RGB")
+            if i == 0:
                 small = pil.copy()
                 small.thumbnail((320, 460))
                 sb = io.BytesIO()
@@ -68,47 +124,78 @@ def _pdf_chunks(path, cfg):
                 thumb = "data:image/jpeg;base64," + base64.b64encode(sb.getvalue()).decode()
             buf = io.BytesIO()
             pil.save(buf, "JPEG", quality=82)
-            images.append("data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode())
-        if end == limit and limit < total:
-            label = "第 %d-%d 页(全文共 %d 页,本次通读前 %d 页)" % (start + 1, end, total, limit)
-        else:
-            label = "第 %d-%d 页" % (start + 1, end) if per > 1 else "第 %d 页" % (start + 1)
-        chunks.append({"label": label, "images": images})
-    doc.close()
-    info = "PDF · 共 %d 页(通读 %d 页)" % (total, limit)
-    return chunks, info, thumb
+            pages.append({
+                "url": "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode(),
+                "tokens": (pil.width * pil.height) // 750,
+            })
+        return pages, total, limit, thumb
+    finally:
+        doc.close()
 
 
-def _text_chunks(path):
-    """LaTeX / Markdown / 文本 -> 按段落边界分块。"""
+def _pdf_plan(pages, total, limit, cfg, force_batch=False):
+    ctx = int(cfg.get("read_context_tokens") or 100000)
+    mode = str(cfg.get("read_mode") or "auto").lower()
+    est = sum(p["tokens"] for p in pages)
+    whole = (not force_batch) and (mode == "whole" or (mode == "auto" and est <= ctx))
+    if whole:
+        label = ("全文共 %d 页" % limit) if limit == total \
+            else ("全文前 %d 页(共 %d 页)" % (limit, total))
+        chunks = [{"label": label, "images": [p["url"] for p in pages], "whole": True}]
+        info = "PDF · 共 %d 页(通读 %d 页) · 整篇一次读取(约 %d k tokens)" % (total, limit, est // 1000)
+    else:
+        per = max(1, int(cfg.get("read_pages_per_request") or 6))
+        chunks = []
+        for start in range(0, limit, per):
+            end = min(start + per, limit)
+            chunks.append({"label": "第 %d-%d 页" % (start + 1, end),
+                           "images": [pages[i]["url"] for i in range(start, end)]})
+        info = "PDF · 共 %d 页(通读 %d 页) · 分 %d 批读取" % (total, limit, len(chunks))
+    return chunks, info
+
+
+def _read_text(path):
     with open(path, "r", encoding="utf-8", errors="ignore") as f:
         text = f.read()
     if path.lower().endswith(".tex"):
         text = re.sub(r"(?<!\\)%.*", "", text)      # 去 LaTeX 注释
         text = re.sub(r"\n{3,}", "\n\n", text)
-    n = len(text)
-    chunks = []
-    i = 0
-    part = 1
-    while i < n and part <= 20:
-        j = min(i + TEXT_CHUNK_SIZE, n)
-        if j < n:
-            k = text.rfind("\n\n", i + TEXT_CHUNK_SIZE // 2, j)
-            if k > 0:
-                j = k
-        chunks.append({"label": "第 %d 段" % part, "text": text[i:j]})
-        i = j
-        part += 1
-    return chunks, "文本 · 共 %d 字符" % n, ""
+    return text
+
+
+def _text_plan(text, cfg, force_batch=False):
+    ctx = int(cfg.get("read_context_tokens") or 100000)
+    mode = str(cfg.get("read_mode") or "auto").lower()
+    est = len(text) // 3          # 英文约 3 字符/token 的保守估算
+    whole = (not force_batch) and (mode == "whole" or (mode == "auto" and est <= ctx))
+    if whole:
+        chunks = [{"label": "全文", "text": text, "whole": True}]
+        info = "文本 · %d 字符 · 整篇一次读取(约 %d k tokens)" % (len(text), est // 1000)
+    else:
+        chunks = []
+        i, part, n = 0, 1, len(text)
+        while i < n and part <= 20:
+            j = min(i + TEXT_CHUNK_SIZE, n)
+            if j < n:
+                k = text.rfind("\n\n", i + TEXT_CHUNK_SIZE // 2, j)
+                if k > 0:
+                    j = k
+            chunks.append({"label": "第 %d 段" % part, "text": text[i:j]})
+            i = j
+            part += 1
+        info = "文本 · %d 字符 · 分 %d 批读取" % (n, len(chunks))
+    return chunks, info
 
 
 def _batch_messages(mode, ck):
+    whole = bool(ck.get("whole"))
     if mode == "images":
         content = [{"type": "image_url", "image_url": {"url": u}} for u in ck["images"]]
-        content.append({"type": "text",
-                        "text": prompts.READ_BATCH_PROMPT_IMAGE.format(label=ck["label"])})
+        tpl = prompts.READ_WHOLE_PROMPT_IMAGE if whole else prompts.READ_BATCH_PROMPT_IMAGE
+        content.append({"type": "text", "text": tpl.format(label=ck["label"])})
     else:
-        content = prompts.READ_BATCH_PROMPT_TEXT.format(label=ck["label"], text=ck["text"])
+        tpl = prompts.READ_WHOLE_PROMPT_TEXT if whole else prompts.READ_BATCH_PROMPT_TEXT
+        content = tpl.format(label=ck["label"], text=ck["text"])
     return [{"role": "system", "content": prompts.SYSTEM_PROMPT},
             {"role": "user", "content": content}]
 
@@ -135,13 +222,18 @@ def _chat_sync(cfg, msgs):
     if not done.wait(BATCH_TIMEOUT):
         return None
     if box["err"]:
-        log_err("论文通读批次失败: " + str(box["err"])[:500])
+        log_err("论文通读请求失败: " + str(box["err"])[:500])
         return None
     return box["text"]
 
 
 def read_document_flow(cfg, path):
-    """通读整篇文档:分批解析 -> 汇总 -> 写入相关小窗与 history。返回完整文本。"""
+    """通读整篇文档:整篇一次读(可装下时)或分批 -> 写入相关小窗与 history。"""
+    if _READING["v"]:
+        windows.popup_new_query("论文通读", "")
+        windows.popup_update("正在通读另一篇论文,请等它读完再投递。", True)
+        return None
+    _READING["v"] = True
     try:
         path = os.path.abspath(path)
         if not os.path.isfile(path):
@@ -159,43 +251,66 @@ def read_document_flow(cfg, path):
         windows.popup_update("正在解析文件…", False)
 
         if ext == ".pdf":
-            chunks, info, thumb = _pdf_chunks(path, cfg)
+            pages, total, limit, thumb = _pdf_pages(path, cfg)
             mode = "images"
+            plan = lambda fb: _pdf_plan(pages, total, limit, cfg, fb)
         else:
-            chunks, info, thumb = _text_chunks(path)
+            text = _read_text(path)
             mode = "text"
-        n = len(chunks)
-        if n == 0:
+            plan = lambda fb: _text_plan(text, cfg, fb)
+
+        chunks, info = plan(False)
+        if not chunks:
             windows.popup_update("文件里没有可读内容。", True)
             return None
 
+        whole = bool(chunks[0].get("whole"))
+        attempt = 0
         results = []
-        for idx, ck in enumerate(chunks, 1):
-            windows.popup_new_query("论文通读 · %s (%d/%d)" % (name, idx, n), "")
-            windows.popup_update("正在阅读 %s …" % ck["label"], False)
-            out = _chat_sync(cfg, _batch_messages(mode, ck))
-            if out is None:  # 单批失败后稍等重试一次
-                time.sleep(1.5)
+        while True:
+            attempt += 1
+            n = len(chunks)
+            results = []
+            failed = 0
+            for idx, ck in enumerate(chunks, 1):
+                windows.popup_new_query("论文通读 · %s (%d/%d)" % (name, idx, n), "")
+                windows.popup_update("正在阅读 %s …" % ck["label"], False)
                 out = _chat_sync(cfg, _batch_messages(mode, ck))
-            results.append("## %s\n\n%s" % (ck["label"], out or "*(本批解析失败)*"))
+                if out is None:
+                    time.sleep(1.5)
+                    out = _chat_sync(cfg, _batch_messages(mode, ck))
+                if out is None:
+                    failed += 1
+                results.append("## %s\n\n%s" % (ck["label"], out or "*(本部分解析失败)*"))
+            if whole and failed and attempt == 1:
+                # 整篇一次读失败(可能超出模型上下文/图片数限制)-> 自动降级分批
+                log_err("整篇读取失败,自动降级为分批模式")
+                windows.popup_update("整篇一次读取未成功,自动改为分批读取…", False)
+                chunks, info = plan(True)
+                whole = False
+                continue
+            break
 
         joined = "\n\n".join(results)
-        body = joined if len(joined) <= 26000 else joined[:26000] + "\n\n*(此处截断,完整内容见下方历史文件)*"
+        if whole:
+            full = ("# 论文通读:《%s》\n\n> %s · %s\n\n%s"
+                    % (name, info, datetime.now().strftime("%Y-%m-%d %H:%M"), joined))
+        else:
+            body = joined if len(joined) <= 26000 \
+                else joined[:26000] + "\n\n*(此处截断,完整内容见历史文件)*"
+            windows.popup_new_query("论文通读 · %s (汇总)" % name, "")
+            windows.popup_update("正在汇总符号总表…", False)
+            final = _chat_sync(cfg, [
+                {"role": "system", "content": prompts.SYSTEM_PROMPT},
+                {"role": "user", "content": prompts.READ_FINAL_PROMPT.format(name=name)
+                                           + "\n\n" + body},
+            ])
+            full = ("# 论文通读:《%s》\n\n> %s · 共 %d 批 · %s\n\n"
+                    "## 总览\n\n%s\n\n---\n\n# 分批细读\n\n%s"
+                    % (name, info, len(chunks), datetime.now().strftime("%Y-%m-%d %H:%M"),
+                       final or "*(汇总失败)*", joined))
 
-        windows.popup_new_query("论文通读 · %s (汇总)" % name, "")
-        windows.popup_update("正在汇总符号总表…", False)
-        final = _chat_sync(cfg, [
-            {"role": "system", "content": prompts.SYSTEM_PROMPT},
-            {"role": "user", "content": prompts.READ_FINAL_PROMPT.format(name=name)
-                                       + "\n\n" + body},
-        ])
-
-        full = ("# 论文通读:《%s》\n\n> %s · 共 %d 批 · %s\n\n"
-                "## 总览\n\n%s\n\n---\n\n# 分批细读\n\n%s"
-                % (name, info, n, datetime.now().strftime("%Y-%m-%d %H:%M"),
-                   final or "*(汇总失败)*", joined))
         windows.popup_update(full, True)
-
         saved = _save_reading(name, full)
         if saved:
             windows.popup_update(full + "\n\n---\n\n*(完整结果已保存:%s,并已放入「相关小窗」)*"
@@ -207,6 +322,8 @@ def read_document_flow(cfg, path):
         log_err(traceback.format_exc())
         windows.popup_update("**通读失败**\n\n```\n%s\n```" % traceback.format_exc()[-600:], True)
         return None
+    finally:
+        _READING["v"] = False
 
 
 def _save_reading(name, full):

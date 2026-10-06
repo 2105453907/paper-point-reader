@@ -6,3 +6,4 @@ pillow>=10.0
 pywebview>=5.0
 pystray>=0.19.5
 pypdfium2>=4.0
+tkinterdnd2>=0.4

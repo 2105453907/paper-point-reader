@@ -58,7 +58,7 @@ class Api:
 
     def read_paper(self):
         from . import document
-        threading.Thread(target=document.read_paper_dialog, args=(self.cfg,),
+        threading.Thread(target=document.drop_zone, args=(self.cfg,),
                          daemon=True).start()
         return ""
 

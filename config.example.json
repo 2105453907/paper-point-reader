@@ -12,6 +12,7 @@
   "hotkey_side_window": "ctrl+alt+s",
   "hotkey_toggle": "ctrl+alt+p",
   "hotkey_read_paper": "ctrl+alt+o",
+  "hotkey_rebuild_tex": "ctrl+alt+l",
   "read_mode": "auto",
   "read_context_tokens": 100000,
   "read_image_scale": 1.8,

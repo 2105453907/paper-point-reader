@@ -11,6 +11,11 @@ import keyboard
 from . import actions, document, runtime, trayicon, windows
 from .config import log_err
 
+
+def _rebuild_entry(cfg):
+    from . import latexbuild
+    latexbuild.rebuild_dialog(cfg)
+
 WH_MOUSE_LL = 14
 WM_XBUTTONDOWN = 0x020B
 WM_XBUTTONUP = 0x020C
@@ -100,6 +105,10 @@ def hotkey_loop(cfg):
         keyboard.add_hotkey(
             cfg.get("hotkey_read_paper", "ctrl+alt+o"),
             lambda: threading.Thread(target=document.drop_zone, args=(cfg,),
+                                     daemon=True).start())
+        keyboard.add_hotkey(
+            cfg.get("hotkey_rebuild_tex", "ctrl+alt+l"),
+            lambda: threading.Thread(target=_rebuild_entry, args=(cfg,),
                                      daemon=True).start())
     except Exception:
         log_err("热键注册失败:\n" + traceback.format_exc())

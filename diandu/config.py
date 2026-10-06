@@ -33,6 +33,7 @@ DEFAULT_CONFIG = {
     "hotkey_side_window": "ctrl+alt+s",
     "hotkey_toggle": "ctrl+alt+p",
     "hotkey_read_paper": "ctrl+alt+o",   # 通读整篇论文(投递小窗)
+    "hotkey_rebuild_tex": "ctrl+alt+l",  # PDF 重建为 LaTeX 并编译
     "read_mode": "auto",                 # auto=能整篇装下就一次读,否则分批 | whole | batch
     "read_context_tokens": 100000,       # 整篇读取的上下文上限(token 估算)
     "read_image_scale": 1.8,             # PDF 页面渲染倍率(越大越清晰、token 越多)

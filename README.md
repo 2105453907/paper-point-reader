@@ -1,0 +1,122 @@
+# 📖 文献点读机 PaperPointReader
+
+**哪里不会点哪里** —— 看论文时遇到看不懂的公式、术语、图表,按一下**鼠标侧键**,AI 立刻弹窗讲解,无需复制粘贴、无需切换窗口。
+
+![platform](https://img.shields.io/badge/platform-Windows%2010%2B-blue) ![python](https://img.shields.io/badge/python-3.10%2B-green) ![license](https://img.shields.io/badge/license-MIT-orange)
+
+> PaperPointReader: select (or box-select) any formula / term / figure in a paper and get an instant AI explanation in a floating window — mouse side-button driven, LaTeX-rendered, with a companion panel that collects related concepts & keywords. Windows only.
+
+## ✨ 功能
+
+- **🖱️ 鼠标侧键点读**:侧键1(后退键)圈选截图讲解,侧键2(前进键)划词讲解;侧键被低级钩子接管,不会触发浏览器后退/前进。也支持键盘热键 `Ctrl+Alt+Q` / `Ctrl+Alt+E`
+- **🎯 公式圈选走视觉模型**:从 PDF 复制公式必然乱码,圈选截图交给视觉模型(默认 GLM-4.5V)是最稳的路线;公式逐符号拆解,LaTeX 实时渲染
+- **📌 相关小窗**:屏幕右侧常驻侧栏,每次点读自动补充**相关概念、前置知识、延伸方向、中英文检索关键词**,卡片式累积,读文献时顺手建立知识网
+- **🔁 再细讲**:还是不懂?一键换成更基础直觉的解释
+- **🗂️ 历史记录**:每次问答自动存入 `history/日期.md`
+- **⚡ 流式输出 + 任意 OpenAI 兼容接口**:智谱 / DeepSeek / OpenAI… 改两行配置即可
+
+## 🚀 快速开始
+
+### 方式一:下载 exe(推荐)
+
+到 [Releases](https://github.com/2105453907/paper-point-reader/releases) 下载 `PaperPointReader-win64.zip`,解压后:
+
+1. 把 `config.example.json` 重命名为 `config.json`,填入 `api_key`([智谱开放平台](https://open.bigmodel.cn)注册即得,也支持任意 OpenAI 兼容接口)
+2. 双击 `PaperPointReader.exe`,托盘出现蓝色"读"图标即成功
+
+### 方式二:源码运行
+
+```bash
+git clone https://github.com/2105453907/paper-point-reader.git
+cd paper-point-reader
+python -m pip install -r requirements.txt
+copy config.example.json config.json   # 然后编辑填入 api_key
+python main.py
+```
+
+Windows 下也可直接双击 `安装依赖.bat` 和 `启动点读机.bat`。
+
+### 自检
+
+```bash
+python main.py --check      # 查看配置摘要
+python main.py --test-api   # 测试 API 密钥连通性
+python tests/test_mousehook.py  # 测试鼠标侧键钩子(Windows)
+```
+
+## 🕹️ 使用
+
+| 操作 | 效果 |
+|---|---|
+| 鼠标侧键1 / `Ctrl+Alt+Q` | **圈选讲解**:屏幕变暗,拖拽框选公式/图表/术语;直接单击则取光标附近一整条;`Esc` 取消 |
+| 鼠标侧键2 / `Ctrl+Alt+E` | **划词讲解**:先在 PDF 里选中文字,再按键,自动复制并讲解(英文先翻译,缩写给全称,公式逐符号解释) |
+| `Ctrl+Alt+S` | 显示/隐藏**相关小窗** |
+| `Esc` | 隐藏弹窗(程序退到托盘继续运行) |
+| 托盘右键 | 显示窗口 / 相关小窗 / 设置 / 历史 / 退出 |
+
+弹窗按钮:**复制** / **再细讲** / **相关**(开关侧窗) / **设置** / **隐藏**。
+
+## ⚙️ 配置(`config.json`)
+
+| 字段 | 说明 |
+|---|---|
+| `api_base` | OpenAI 兼容接口地址。DeepSeek:`https://api.deepseek.com/v1`;OpenAI:`https://api.openai.com/v1` |
+| `api_key` | 密钥(留空时自动读取环境变量 `ZHIPUAI_API_KEY` / `OPENAI_API_KEY`) |
+| `text_model` / `vision_model` | 划词用文本模型 / 圈选用视觉模型 |
+| `mouse_side1` / `mouse_side2` | 侧键功能:`region` / `text` / `none`(不拦截,还原原生功能) |
+| `hotkey_*` | 键盘热键,如 `f9`、`alt+z`;默认 Ctrl+Alt 组合是为避开 Adobe 等软件的 Alt 菜单键 |
+| `side_window` / `auto_related` | 启用相关小窗 / 自动补充相关内容(关掉省 API 费用) |
+| `popup_*` / `side_*` | 两个窗口的大小 |
+| `save_history` | 自动保存问答记录 |
+
+## 🧩 项目结构
+
+```
+main.py                 入口
+diandu/
+  app.py                装配:窗口创建、线程/托盘启动、--check/--test-api
+  config.py             配置加载与路径(打包后数据文件跟随 exe)
+  runtime.py            共享运行时状态
+  prompts.py            提示词
+  llm.py                OpenAI 兼容流式调用(文本/视觉)
+  webui.py              两个窗口的内嵌 HTML(WebSocket 免了,直接 evaluate_js)
+  windows.py            弹窗/侧窗的显示更新 + 无 WebView2 时的兜底
+  bridge.py             JS 桥(页面按钮 → Python)
+  actions.py            圈选/划词流程、问答编排、卡片、历史
+  capture.py            遮罩圈选、mss 截图、模拟 Ctrl+C 划词
+  inputs.py             WH_MOUSE_LL 侧键钩子 + 键盘热键
+  trayicon.py           托盘
+tools/make_icon.py      生成图标
+tests/test_mousehook.py 侧键钩子自测
+build_exe.bat           一键 PyInstaller 打包
+.github/workflows/      推 tag 自动构建 exe 并附到 Release
+```
+
+## 🔨 自己打包 exe
+
+```bat
+build_exe.bat
+```
+
+产物为 `dist/PaperPointReader.exe`(单文件)。推送 `v*` 标签时 CI 会自动构建并附到 GitHub Release。
+
+## ❓ 常见问题
+
+- **提示模型不存在 / 400**:把 `text_model`、`vision_model` 换成你账号实际可用的模型名。
+- **401**:密钥填错或没保存。
+- **划词拿不到文字**:该 PDF 禁止复制,改用圈选(侧键1)。
+- **侧键按下后浏览器还是后退**:钩子未装上,看 `err.log` 后重启程序。
+- **多显示器**:目前圈选/弹窗只支持主屏;高分屏已做 DPI 适配。
+- **开机自启**:`Win+R` → `shell:startup`,放入 `启动点读机.bat` 的快捷方式。
+
+## ⚠️ 已知限制与说明
+
+- 划词模式会临时改写剪贴板,读取后自动恢复你之前的内容。
+- 圈选截图要求画面在主显示器上。
+- 需要联网(模型 API 与公式渲染脚本来自 CDN)。
+- 侧键全局接管后,浏览器后退/前进会失效(`"none"` 可还原)。
+- 自建exe 若被杀毒软件误报,请加白名单(全局钩子类程序的常见待遇),或用源码运行。
+
+## 📄 License
+
+[MIT](LICENSE)

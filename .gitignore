@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# 用户数据与本机产物(勿提交)
+config.json
+err.log
+history/
+build/
+dist/
+*.spec
+
+# 编辑器
+.vscode/
+.idea/

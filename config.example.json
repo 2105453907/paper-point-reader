@@ -3,6 +3,7 @@
   "api_key": "",
   "text_model": "glm-4.6",
   "vision_model": "glm-4.5v",
+  "fallback_model": "",
   "mouse_side1": "region",
   "mouse_side2": "text",
   "hotkey_select_region": "ctrl+alt+q",

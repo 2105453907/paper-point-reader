@@ -20,5 +20,9 @@ side_lock = threading.Lock()
 
 region_open = {"v": False}       # 圈选遮罩是否已打开
 
+enabled = {"v": True}            # 点读机开关:暂停后侧键/热键失效并恢复侧键原生功能
+tray_icon = None                 # pystray 图标对象(供开关时更新图标/提示)
+tray_icons = {}                  # {"on": 蓝色图标, "off": 灰色图标}
+
 mouse_binding = {}               # XBUTTON 编号 -> 触发函数(存在即拦截)
 mouse_swallowed = {"v": 0}       # 调试计数

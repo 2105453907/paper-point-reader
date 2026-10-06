@@ -30,6 +30,7 @@ DEFAULT_CONFIG = {
     "hotkey_select_region": "ctrl+alt+q",
     "hotkey_copy_text": "ctrl+alt+e",
     "hotkey_side_window": "ctrl+alt+s",
+    "hotkey_toggle": "ctrl+alt+p",
     "side_window": True,          # 启用「相关小窗」
     "auto_related": True,         # 讲解完成后自动补充"相关概念/前置知识/延伸方向"
     "popup_width": 580,

@@ -8,7 +8,7 @@ import traceback
 
 import keyboard
 
-from . import actions, runtime, windows
+from . import actions, runtime, trayicon, windows
 from .config import log_err
 
 WH_MOUSE_LL = 14
@@ -47,7 +47,7 @@ def _mouse_hook_proc(n_code, w_param, l_param):
             info = ctypes.cast(l_param, ctypes.POINTER(MSLLHOOKSTRUCT)).contents
             xbtn = (info.mouseData >> 16) & 0xFFFF
             action = runtime.mouse_binding.get(xbtn)
-            if action:
+            if action and runtime.enabled["v"]:
                 runtime.mouse_swallowed["v"] += 1
                 if w_param == WM_XBUTTONDOWN:
                     threading.Thread(target=action, daemon=True).start()
@@ -81,17 +81,22 @@ def install_mouse_hooks(cfg):
 
 
 def hotkey_loop(cfg):
-    """注册键盘备用热键(圈选/划词/相关小窗开关)。"""
+    """注册键盘备用热键(圈选/划词/相关小窗/总开关)。"""
+    def trigger(flow):
+        def call():
+            if runtime.enabled["v"]:
+                threading.Thread(target=flow, args=(cfg,), daemon=True).start()
+        return call
+
     try:
-        keyboard.add_hotkey(
-            cfg["hotkey_select_region"],
-            lambda: threading.Thread(target=actions.region_flow, args=(cfg,), daemon=True).start())
-        keyboard.add_hotkey(
-            cfg["hotkey_copy_text"],
-            lambda: threading.Thread(target=actions.text_flow, args=(cfg,), daemon=True).start())
+        keyboard.add_hotkey(cfg["hotkey_select_region"], trigger(actions.region_flow))
+        keyboard.add_hotkey(cfg["hotkey_copy_text"], trigger(actions.text_flow))
         keyboard.add_hotkey(
             cfg.get("hotkey_side_window", "ctrl+alt+s"),
             lambda: threading.Thread(target=windows.toggle_side, daemon=True).start())
+        keyboard.add_hotkey(
+            cfg.get("hotkey_toggle", "ctrl+alt+p"),
+            lambda: threading.Thread(target=trayicon.toggle_enabled, daemon=True).start())
     except Exception:
         log_err("热键注册失败:\n" + traceback.format_exc())
     while True:

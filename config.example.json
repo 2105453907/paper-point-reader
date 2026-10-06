@@ -10,6 +10,7 @@
   "hotkey_select_region": "ctrl+alt+q",
   "hotkey_copy_text": "ctrl+alt+e",
   "hotkey_side_window": "ctrl+alt+s",
+  "hotkey_toggle": "ctrl+alt+p",
   "side_window": true,
   "auto_related": true,
   "popup_width": 580,

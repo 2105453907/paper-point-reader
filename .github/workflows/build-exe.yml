@@ -1,0 +1,58 @@
+name: build-exe
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build exe
+        run: >
+          pyinstaller --noconfirm --clean --windowed --onefile
+          --name PaperPointReader --icon assets/icon.ico
+          --hidden-import webview.platforms.winforms
+          --hidden-import webview.platforms.edgechromium
+          --collect-all clr_loader
+          --exclude-module PyQt5 --exclude-module PyQt6 --exclude-module PySide2
+          --exclude-module PySide6 --exclude-module qtpy
+          --exclude-module webview.platforms.qt --exclude-module webview.platforms.cef
+          --exclude-module webview.platforms.gtk --exclude-module webview.platforms.android
+          --exclude-module webview.platforms.cocoa
+          --exclude-module numpy --exclude-module scipy --exclude-module pandas
+          --exclude-module matplotlib --exclude-module torch --exclude-module IPython
+          main.py
+
+      - name: Zip
+        shell: pwsh
+        run: >
+          Compress-Archive -Path dist/PaperPointReader.exe, config.example.json, README.md
+          -DestinationPath PaperPointReader-win64.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PaperPointReader-win64
+          path: PaperPointReader-win64.zip
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: PaperPointReader-win64.zip

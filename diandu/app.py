@@ -28,8 +28,9 @@ def check(cfg):
     print("vision_model :", cfg["vision_model"])
     print("鼠标侧键: 侧键1(后退)=%s  侧键2(前进)=%s"
           % (cfg.get("mouse_side1"), cfg.get("mouse_side2")))
-    print("热键: 圈选=%s  划词=%s  相关小窗=%s"
-          % (cfg["hotkey_select_region"], cfg["hotkey_copy_text"], cfg.get("hotkey_side_window")))
+    print("热键: 圈选=%s  划词=%s  相关小窗=%s  总开关=%s"
+          % (cfg["hotkey_select_region"], cfg["hotkey_copy_text"],
+             cfg.get("hotkey_side_window"), cfg.get("hotkey_toggle")))
     print("相关小窗: %s, 自动补充相关内容=%s"
           % ("开启" if cfg.get("side_window", True) else "关闭",
              "是" if cfg.get("auto_related", True) else "否"))

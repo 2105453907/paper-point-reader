@@ -56,6 +56,12 @@ class Api:
                                base_msgs=self.base_msgs, update_card=self.card_id)
         return ""
 
+    def read_paper(self):
+        from . import document
+        threading.Thread(target=document.read_paper_dialog, args=(self.cfg,),
+                         daemon=True).start()
+        return ""
+
     # ---- 相关小窗 ----
 
     def toggle_side(self):

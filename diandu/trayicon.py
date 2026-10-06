@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """系统托盘图标、菜单,以及「启用/暂停点读机」开关。"""
 import os
+import threading
 import traceback
 
 from . import config, runtime, windows
@@ -58,10 +59,15 @@ def make_tray(cfg):
         except Exception:
             pass
 
+    def read_paper(*a):
+        from . import document
+        threading.Thread(target=document.read_paper_dialog, args=(cfg,), daemon=True).start()
+
     menu = pystray.Menu(
         pystray.MenuItem("启用点读机", lambda icon, item: toggle_enabled(),
                          checked=lambda item: runtime.enabled["v"]),
         pystray.MenuItem("显示窗口", toggle_window, default=True),
+        pystray.MenuItem("通读论文(选择文件)…", read_paper),
         pystray.MenuItem("打开相关小窗", lambda *a: (windows.side_render(), windows.show_side())),
         pystray.MenuItem("打开设置", lambda *a: _startfile(config.CONFIG_PATH)),
         pystray.MenuItem("打开历史记录", lambda *a: (os.makedirs(config.HISTORY_DIR, exist_ok=True),

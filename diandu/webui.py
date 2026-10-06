@@ -41,6 +41,7 @@ _MAIN_HTML = """<!DOCTYPE html>
   <span id="badge">点读机 v__VERSION__</span><span class="sp"></span>
   <button class="btn" onclick="try{pywebview.api.copy_answer()}catch(e){}">复制</button>
   <button class="btn" onclick="try{pywebview.api.more_detail()}catch(e){}">再细讲</button>
+  <button class="btn" onclick="try{pywebview.api.read_paper()}catch(e){}">通读</button>
   <button class="btn" onclick="try{pywebview.api.toggle_side()}catch(e){}">相关</button>
   <button class="btn" onclick="try{pywebview.api.open_config()}catch(e){}">设置</button>
   <button class="btn" onclick="try{pywebview.api.hide()}catch(e){}">隐藏</button>

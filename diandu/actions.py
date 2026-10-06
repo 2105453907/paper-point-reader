@@ -111,7 +111,7 @@ def start_chat(cfg, msgs, badge, thumb="", base_msgs=None, title="", source_note
 
 # ---------------------------------------------------------------- 相关小窗卡片
 
-def add_card(cfg, card_id, title, thumb, main_md, source_note):
+def add_card(cfg, card_id, title, thumb, main_md, source_note, auto_related=None):
     if runtime.side is None or not cfg.get("side_window", True):
         return
     card = {"id": card_id, "title": title, "time": datetime.now().strftime("%H:%M"),
@@ -119,7 +119,8 @@ def add_card(cfg, card_id, title, thumb, main_md, source_note):
     with runtime.side_lock:
         runtime.side_cards.insert(0, card)
         del runtime.side_cards[MAX_CARDS:]
-    if cfg.get("auto_related", True):
+    do_rel = cfg.get("auto_related", True) if auto_related is None else auto_related
+    if do_rel:
         fetch_related(cfg, card, source_note)
     windows.side_render()
     if not runtime.side_visible["v"]:

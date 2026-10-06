@@ -8,7 +8,7 @@ import traceback
 
 import keyboard
 
-from . import actions, runtime, trayicon, windows
+from . import actions, document, runtime, trayicon, windows
 from .config import log_err
 
 WH_MOUSE_LL = 14
@@ -97,6 +97,10 @@ def hotkey_loop(cfg):
         keyboard.add_hotkey(
             cfg.get("hotkey_toggle", "ctrl+alt+p"),
             lambda: threading.Thread(target=trayicon.toggle_enabled, daemon=True).start())
+        keyboard.add_hotkey(
+            cfg.get("hotkey_read_paper", "ctrl+alt+o"),
+            lambda: threading.Thread(target=document.read_paper_dialog, args=(cfg,),
+                                     daemon=True).start())
     except Exception:
         log_err("热键注册失败:\n" + traceback.format_exc())
     while True:

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """应用装配:命令行入口、窗口创建、输入/托盘线程启动。"""
 import ctypes
+import os
 import sys
 import threading
 import traceback
@@ -54,6 +55,9 @@ def check(cfg):
     print("热键: 圈选=%s  划词=%s  相关小窗=%s  总开关=%s"
           % (cfg["hotkey_select_region"], cfg["hotkey_copy_text"],
              cfg.get("hotkey_side_window"), cfg.get("hotkey_toggle")))
+    print("论文通读: 热键=%s, 每批 %s 页, 最多 %s 页(0=全部)"
+          % (cfg.get("hotkey_read_paper"), cfg.get("read_pages_per_request"),
+             cfg.get("read_max_pages")))
     print("相关小窗: %s, 自动补充相关内容=%s"
           % ("开启" if cfg.get("side_window", True) else "关闭",
              "是" if cfg.get("auto_related", True) else "否"))
@@ -75,6 +79,13 @@ def main(argv=None):
 
     if not _single_instance_guard():
         return
+
+    # 支持把论文文件直接拖到桌面图标/程序上:python main.py 论文.pdf
+    pending_file = None
+    for a in argv:
+        if os.path.isfile(a) and os.path.splitext(a)[1].lower() in (".pdf", ".tex", ".md", ".txt"):
+            pending_file = a
+            break
 
     runtime.api = bridge.Api(cfg)
 
@@ -105,11 +116,19 @@ def main(argv=None):
             def on_ready():
                 runtime.ready.set()
                 runtime.webview_ok["v"] = True
+                if pending_file:
+                    from . import document
+                    threading.Thread(target=document.read_document_flow,
+                                     args=(cfg, pending_file), daemon=True).start()
             webview.start(on_ready)
             return
         except Exception:
             runtime.webview_ok["v"] = False
             log_err("WebView 启动失败,回退基础模式:\n" + traceback.format_exc())
+    if pending_file:
+        from . import document
+        threading.Thread(target=document.read_document_flow,
+                         args=(cfg, pending_file), daemon=True).start()
     windows.run_fallback_gui(cfg)
 
 

@@ -31,6 +31,9 @@ DEFAULT_CONFIG = {
     "hotkey_copy_text": "ctrl+alt+e",
     "hotkey_side_window": "ctrl+alt+s",
     "hotkey_toggle": "ctrl+alt+p",
+    "hotkey_read_paper": "ctrl+alt+o",   # 通读整篇论文(选择文件)
+    "read_pages_per_request": 3,         # 论文通读:每次交给模型的 PDF 页数
+    "read_max_pages": 60,                # 论文通读:最多读多少页(0=全部)
     "side_window": True,          # 启用「相关小窗」
     "auto_related": True,         # 讲解完成后自动补充"相关概念/前置知识/延伸方向"
     "popup_width": 580,

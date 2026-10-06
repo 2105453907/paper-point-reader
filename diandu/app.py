@@ -42,18 +42,22 @@ def _notice_already_running():
         pass
 
 
-def _deliver_drop(path):
-    """把拖入的文件路径交给正在运行的实例(写入 drop.txt,由对方拾取)。"""
+def _deliver_request(payload):
+    """把请求(打开论文 / 显示窗口)交给正在运行的实例;失败时弹提示。"""
     try:
+        payload = dict(payload)
+        payload["ts"] = time.time()
         with open(config.DROP_FILE, "w", encoding="utf-8") as f:
-            json.dump({"path": os.path.abspath(path), "ts": time.time()}, f)
+            json.dump(payload, f)
+        return True
     except Exception:
         log_err("投递失败:\n" + traceback.format_exc())
         _notice_already_running()
+        return False
 
 
 def _start_drop_watcher(cfg):
-    """轮询 drop.txt:收到别的实例投递的论文路径就自动开始通读。"""
+    """轮询 drop.txt:收到别的实例投递的请求就执行(通读论文 / 显示主窗口)。"""
     def loop():
         from . import document
         while True:
@@ -61,11 +65,16 @@ def _start_drop_watcher(cfg):
                 if os.path.exists(config.DROP_FILE):
                     time.sleep(0.3)  # 等写入完成
                     with open(config.DROP_FILE, "r", encoding="utf-8") as f:
-                        info = json.load(f)
-                    os.remove(config.DROP_FILE)
-                    path = (info or {}).get("path", "")
-                    if path and os.path.isfile(path):
-                        document.read_document_flow(cfg, path)
+                        info = json.load(f) or {}
+                    try:
+                        os.remove(config.DROP_FILE)
+                    except Exception:
+                        pass
+                    action = info.get("action") or ("read" if info.get("path") else "")
+                    if action == "read" and os.path.isfile(info.get("path", "")):
+                        document.read_document_flow(cfg, info["path"])
+                    elif action == "show":
+                        windows.force_show_popup()
             except Exception:
                 log_err("拾取投递失败:\n" + traceback.format_exc())
             time.sleep(1.2)
@@ -119,10 +128,10 @@ def main(argv=None):
             break
 
     if not _single_instance_guard():
-        if pending_file:                 # 已有实例:把文件投递给它
-            _deliver_drop(pending_file)
-        else:
-            _notice_already_running()
+        if pending_file:                 # 已有实例:把论文投递给它通读
+            _deliver_request({"action": "read", "path": os.path.abspath(pending_file)})
+        else:                            # 已有实例:把它的窗口叫到前台
+            _deliver_request({"action": "show"})
         return
 
     runtime.api = bridge.Api(cfg)
@@ -159,6 +168,8 @@ def main(argv=None):
                     from . import document
                     threading.Thread(target=document.read_document_flow,
                                      args=(cfg, pending_file), daemon=True).start()
+                elif cfg.get("show_on_start", True):
+                    windows.force_show_popup()   # 启动即有可见反馈,不再"打不开"
             webview.start(on_ready)
             return
         except Exception:

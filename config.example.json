@@ -24,5 +24,6 @@
   "popup_height": 700,
   "side_width": 380,
   "side_height": 680,
-  "save_history": true
+  "save_history": true,
+  "show_on_start": true
 }

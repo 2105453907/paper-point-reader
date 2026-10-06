@@ -46,6 +46,7 @@ DEFAULT_CONFIG = {
     "side_width": 380,
     "side_height": 680,
     "save_history": True,
+    "show_on_start": True,               # 启动时亮出主窗口(显示用法速览)
 }
 
 

@@ -54,8 +54,8 @@ def make_tray(cfg):
 
     def toggle_window(*a):
         try:
-            if runtime.win is not None and runtime.webview_ok["v"]:
-                runtime.win.show()
+            if runtime.webview_ok["v"]:
+                windows.force_show_popup()
         except Exception:
             pass
 

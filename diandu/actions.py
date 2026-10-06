@@ -13,10 +13,22 @@ from .config import log_err
 
 MAX_CARDS = 30  # 相关小窗最多保留的卡片数(防缩略图积累过大)
 
+# 触发冷却:鼠标侧键连按/键盘热键长按自动连发时,避免多次弹窗互相打断(闪来闪去)
+_TRIGGER_TS = {"region": 0.0, "text": 0.0}
+TRIGGER_COOLDOWN = 1.0
+
+
+def _trigger_ok(name):
+    now = time.time()
+    if now - _TRIGGER_TS[name] < TRIGGER_COOLDOWN:
+        return False
+    _TRIGGER_TS[name] = now
+    return True
+
 
 def region_flow(cfg):
     """侧键1/热键:遮罩圈选 -> 截图 -> 视觉模型讲解。"""
-    if runtime.region_open["v"]:
+    if not _trigger_ok("region") or runtime.region_open["v"]:
         return
     runtime.region_open["v"] = True
     try:
@@ -54,6 +66,8 @@ def region_flow(cfg):
 
 def text_flow(cfg):
     """侧键2/热键:模拟 Ctrl+C 取选中文字 -> 文本模型讲解。"""
+    if not _trigger_ok("text"):
+        return
     try:
         time.sleep(0.15)
         text = capture.get_selected_text()

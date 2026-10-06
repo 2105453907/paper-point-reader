@@ -9,6 +9,10 @@ api = None          # JS 桥 (bridge.Api)
 
 ready = threading.Event()        # webview GUI 循环已启动
 webview_ok = {"v": False}        # WebView2 可用
+win_lock = threading.Lock()      # 串行化主弹窗操作(show/hide/move/evaluate_js)
+side_win_lock = threading.Lock() # 串行化相关小窗操作
+win_visible = {"v": False}       # 主弹窗当前是否可见(自己跟踪,避免重复 show)
+has_content = {"v": False}       # 主弹窗是否已有过内容(决定是否放欢迎信息)
 side_visible = {"v": False}
 fallback_q = queue.Queue()       # 基础模式(无 WebView2)的更新队列
 

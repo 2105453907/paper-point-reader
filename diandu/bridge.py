@@ -27,10 +27,12 @@ class Api:
     # ---- 主弹窗 ----
 
     def hide(self):
-        try:
-            runtime.win.hide()
-        except Exception:
-            pass
+        with runtime.win_lock:
+            try:
+                runtime.win.hide()
+            except Exception:
+                pass
+            runtime.win_visible["v"] = False
         return ""
 
     def copy_answer(self):

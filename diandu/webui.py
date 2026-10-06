@@ -1,11 +1,66 @@
 # -*- coding: utf-8 -*-
 """两个 WebView 窗口的内嵌页面(主弹窗 / 相关小窗)。
 
-__VERSION__ 会在导入时替换为真实版本号。
+__VERSION__ 与 __RENDER_JS__ 在导入时替换。
+RENDER_JS 是共享的渲染工具(tests/run_render_test.js 会从本文件提取同一份代码做离线测试):
+先摘出数学片段并按需转换 LaTeX 环境,再做 Markdown,最后放回并交给 KaTeX——
+否则 marked 会把 \\( \\) 转义掉、把 _ 和 * 当作强调,公式就会以乱码形式漏渲染。
 """
 from . import __version__
 
-_MAIN_HTML = """<!DOCTYPE html>
+RENDER_JS = r"""/*==RENDER-JS-BEGIN==*/
+function escHtml(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function convertMath(s){
+  var env = s.match(/^\\begin\{([a-zA-Z*]+)\}([\s\S]*)\\end\{\1\}$/);
+  if(env){
+    var name = env[1], body = env[2];
+    if(name === 'equation' || name === 'equation*' || name === 'displaymath')
+      return '$$' + body + '$$';
+    if(name === 'align' || name === 'align*' || name === 'eqnarray' || name === 'eqnarray*')
+      return '$$\\begin{aligned}' + body.replace(/&=&/g, '&=') + '\\end{aligned}$$';
+    if(name === 'gather' || name === 'gather*' || name === 'multline' || name === 'multline*')
+      return '$$\\begin{gathered}' + body + '\\end{gathered}$$';
+  }
+  if(s.slice(0, 2) === '\\[') return '$$' + s.slice(2, -2) + '$$';
+  if(s.slice(0, 2) === '\\(') return '$' + s.slice(2, -2) + '$';
+  return s;
+}
+var MATH_RE = /\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\$[^$\n]*?\$|\\begin\{(?:equation\*?|align\*?|gather\*?|eqnarray\*?|multline\*?|displaymath)\}[\s\S]*?\\end\{(?:equation\*?|align\*?|gather\*?|eqnarray\*?|multline\*?|displaymath)\}/g;
+function toHtml(t){
+  t = t || '';
+  if(!window.marked){ return '<pre style="white-space:pre-wrap">' + escHtml(t) + '</pre>'; }
+  try{
+    var store = [];
+    var tag = 'MATHX' + Math.floor(Math.random() * 1e9).toString(36) + 'Q';
+    var text = t.replace(MATH_RE, function(m){
+      var s = convertMath(m)
+        .replace(/\\label\{[^}]*\}/g, '')
+        .replace(/\\(?:nonumber|notag)\b/g, '');
+      store.push(s);
+      return tag + (store.length - 1) + 'Q';
+    });
+    var html = marked.parse(text);
+    return html.replace(new RegExp(tag + '(\\d+)Q', 'g'), function(_, i){
+      return '<span class="maths">' + escHtml(store[+i]) + '</span>';
+    });
+  }catch(e){
+    return '<pre style="white-space:pre-wrap">' + escHtml(t) + '</pre>';
+  }
+}
+function renderMath(el){
+  try{ if(window.renderMathInElement){
+    renderMathInElement(el, {delimiters:[
+      {left:'$$', right:'$$', display:true},
+      {left:'\\[', right:'\\]', display:true},
+      {left:'$', right:'$', display:false},
+      {left:'\\(', right:'\\)', display:false}], throwOnError:false});
+  } }catch(e){}
+}
+/*==RENDER-JS-END==*/"""
+
+_MAIN_HTML = r"""<!DOCTYPE html>
 <html lang="zh">
 <head>
 <meta charset="utf-8">
@@ -32,6 +87,7 @@ _MAIN_HTML = """<!DOCTYPE html>
   #c code{background:#f3f4f6;padding:1px 4px;border-radius:4px;font-size:12.5px;}
   #c table{border-collapse:collapse;} #c td,#c th{border:1px solid #e5e7eb;padding:4px 8px;}
   .katex{font-size:1.02em;}
+  .maths{display:inline;}
   .dots::after{content:"";animation:dots 1.2s steps(4,end) infinite;}
   @keyframes dots{0%{content:""}25%{content:"·"}50%{content:"··"}75%{content:"···"}}
   #askbar{position:fixed;left:0;right:0;bottom:0;display:flex;gap:8px;padding:10px 12px;
@@ -65,22 +121,9 @@ _MAIN_HTML = """<!DOCTYPE html>
   <button id="askbtn" onclick="askSend()">问</button>
 </div>
 <script>
+__RENDER_JS__
 const c = document.getElementById('c');
 const status = document.getElementById('status');
-function toHtml(t){
-  try{ if(window.marked){ return marked.parse(t||''); } }catch(e){}
-  return '<pre style="white-space:pre-wrap">'+String(t||'')
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</pre>';
-}
-function math(el){
-  try{ if(window.renderMathInElement){
-    renderMathInElement(el,{delimiters:[
-      {left:'$$',right:'$$',display:true},
-      {left:'\\\\[',right:'\\\\]',display:true},
-      {left:'$',right:'$',display:false},
-      {left:'\\\\(',right:'\\\\)',display:false}],throwOnError:false});
-  } }catch(e){}
-}
 function newQuery(badge, thumb){
   document.getElementById('badge').textContent = badge;
   const tb = document.getElementById('thumbbox');
@@ -89,7 +132,7 @@ function newQuery(badge, thumb){
   c.innerHTML=''; status.style.display='block';
 }
 function update(text, final){
-  c.innerHTML = toHtml(text); math(c);
+  c.innerHTML = toHtml(text); renderMath(c);
   status.style.display='none';
   c.scrollTop = final ? 0 : c.scrollHeight;
 }
@@ -117,7 +160,7 @@ window.__pageReady = true;
 </body>
 </html>"""
 
-_SIDE_HTML = """<!DOCTYPE html>
+_SIDE_HTML = r"""<!DOCTYPE html>
 <html lang="zh">
 <head>
 <meta charset="utf-8">
@@ -150,6 +193,7 @@ _SIDE_HTML = """<!DOCTYPE html>
   .cbody code{background:#f3f4f6;padding:1px 4px;border-radius:4px;font-size:11.5px;}
   .cbody table{border-collapse:collapse;} .cbody td,.cbody th{border:1px solid #e5e7eb;padding:3px 6px;}
   .katex{font-size:1.0em;}
+  .maths{display:inline;}
 </style>
 </head>
 <body>
@@ -160,16 +204,11 @@ _SIDE_HTML = """<!DOCTYPE html>
 </div>
 <div id="list"></div>
 <script>
+__RENDER_JS__
 let data = [];
 let maxSeen = 0;
 const openIds = new Set();
 const list = document.getElementById('list');
-function toHtml(t){
-  try{ if(window.marked){ return marked.parse(t||''); } }catch(e){}
-  return '<pre style="white-space:pre-wrap">'+String(t||'')
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</pre>';
-}
-function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
 function toggle(id){ if(openIds.has(id)){ openIds.delete(id); } else { openIds.add(id); } draw(); }
 function render(json){
   data = json || [];
@@ -188,18 +227,12 @@ function draw(){
       ? '<div class="rel"><div class="rel-h">🔗 相关</div>'+toHtml(cd.related)+'</div>'
       : (cd.related_pending ? '<div class="rel"><div class="rel-h">🔗 相关内容生成中…</div></div>' : '');
     return '<div class="card'+open+'">'
-      +'<div class="chead" onclick="toggle('+cd.id+')"><span class="ct">'+esc(cd.title)
-      +'</span><span class="ctime">'+esc(cd.time)+'</span></div>'
+      +'<div class="chead" onclick="toggle('+cd.id+')"><span class="ct">'+escHtml(cd.title)
+      +'</span><span class="ctime">'+escHtml(cd.time)+'</span></div>'
       +(cd.thumb ? '<img class="timg" src="'+cd.thumb+'" onclick="toggle('+cd.id+')">' : '')
       +'<div class="cbody">'+toHtml(cd.main)+rel+'</div></div>';
   }).join('');
-  try{ if(window.renderMathInElement){
-    renderMathInElement(list,{delimiters:[
-      {left:'$$',right:'$$',display:true},
-      {left:'\\\\[',right:'\\\\]',display:true},
-      {left:'$',right:'$',display:false},
-      {left:'\\\\(',right:'\\\\)',display:false}],throwOnError:false});
-  } }catch(e){}
+  renderMath(list);
 }
 window.addEventListener('keydown', function(e){
   if(e.key==='Escape'){ try{pywebview.api.side_hide();}catch(err){} }
@@ -209,5 +242,5 @@ window.__pageReady = true;
 </body>
 </html>"""
 
-MAIN_HTML = _MAIN_HTML.replace("__VERSION__", __version__)
-SIDE_HTML = _SIDE_HTML
+MAIN_HTML = _MAIN_HTML.replace("__RENDER_JS__", RENDER_JS).replace("__VERSION__", __version__)
+SIDE_HTML = _SIDE_HTML.replace("__RENDER_JS__", RENDER_JS)

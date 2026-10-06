@@ -57,9 +57,14 @@ def _deliver_request(payload):
 
 
 def _start_drop_watcher(cfg):
-    """轮询 drop.txt:收到别的实例投递的请求就执行(通读论文 / 显示主窗口)。"""
+    """轮询共享投递文件:收到别的实例的请求就执行(通读论文 / 显示主窗口)。"""
     def loop():
         from . import document
+        try:                      # 清理上次进程退出时遗留的请求
+            if os.path.exists(config.DROP_FILE):
+                os.remove(config.DROP_FILE)
+        except Exception:
+            pass
         while True:
             try:
                 if os.path.exists(config.DROP_FILE):
@@ -162,14 +167,25 @@ def main(argv=None):
     if runtime.win is not None:
         try:
             def on_ready():
-                runtime.ready.set()
-                runtime.webview_ok["v"] = True
-                if pending_file:
-                    from . import document
-                    threading.Thread(target=document.read_document_flow,
-                                     args=(cfg, pending_file), daemon=True).start()
-                elif cfg.get("show_on_start", True):
-                    windows.force_show_popup()   # 启动即有可见反馈,不再"打不开"
+                # 后台线程早于 GUI 循环启动,这里只做最小操作,其余放进子线程并兜底记录异常
+                try:
+                    runtime.ready.set()
+                    runtime.webview_ok["v"] = True
+
+                    def startup_actions():
+                        try:
+                            time.sleep(1.0)   # 给窗口创建/消息循环一点时间
+                            if pending_file:
+                                from . import document
+                                document.read_document_flow(cfg, pending_file)
+                            elif cfg.get("show_on_start", True):
+                                windows.force_show_popup()
+                        except Exception:
+                            log_err("启动动作失败:\n" + traceback.format_exc())
+
+                    threading.Thread(target=startup_actions, daemon=True).start()
+                except Exception:
+                    log_err("on_ready 失败:\n" + traceback.format_exc())
             webview.start(on_ready)
             return
         except Exception:

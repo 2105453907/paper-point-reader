@@ -8,6 +8,7 @@
 """
 import json
 import queue
+import threading
 import time
 import traceback
 
@@ -23,22 +24,52 @@ WELCOME = (
 )
 
 
+def eval_safe(win, script, timeout=4.0):
+    """带超时的 evaluate_js,返回 (结果, 错误文本)。
+
+    pywebview 的 evaluate_js 内部用信号量等待回调,理论上可能永远阻塞;
+    放到工作线程执行并限时等待,超时返回 (None, "超时"),避免整个窗口流程被卡死。
+    """
+    box = {"v": None, "done": False, "err": None}
+
+    def run():
+        try:
+            box["v"] = win.evaluate_js(script)
+        except Exception as e:
+            box["err"] = "%s: %s" % (type(e).__name__, str(e)[:200])
+        box["done"] = True
+
+    t = threading.Thread(target=run, daemon=True)
+    t.start()
+    t.join(timeout)
+    if not box["done"]:
+        return None, "超时(%.1f 秒)" % timeout
+    return box["v"], box["err"]
+
+
 def wait_win_ready(win, timeout=10):
-    """等页面(含 CDN 脚本)加载完成。须在对应窗口锁内调用。"""
+    """等页面(含内联脚本)加载完成。须在对应窗口锁内调用。"""
     end = time.time() + timeout
     while time.time() < end:
-        try:
-            if win.evaluate_js("window.__pageReady===true"):
-                return True
-        except Exception:
-            pass
+        v, _ = eval_safe(win, "window.__pageReady===true", 4.0)
+        if v is True:
+            return True
         time.sleep(0.2)
     return True
 
 
-def _win_eval(script):
-    with runtime.win_lock:
-        runtime.win.evaluate_js(script)
+def _win_eval(script, attempts=2):
+    """写入主弹窗内容;脚本包一层返回 'ok' 作为执行回执,失败时记录真实原因。"""
+    wrapped = "(function(){ %s; return 'ok'; })()" % script
+    err = None
+    for _ in range(attempts):
+        with runtime.win_lock:
+            v, err = eval_safe(runtime.win, wrapped)
+        if err is None and v == "ok":
+            return True
+        time.sleep(0.8)
+    log_err("主弹窗写入失败(%d 次尝试): %s | %s" % (attempts, err, script[:80]))
+    return False
 
 
 # ---------------------------------------------------------------- 主弹窗
@@ -68,6 +99,7 @@ def popup_new_query(badge, thumb=""):
     if runtime.webview_ok["v"] and runtime.win is not None:
         try:
             runtime.ready.wait(15)
+            wait_win_ready(runtime.win)      # 等页面(含 CDN)就绪,否则启动瞬间写入会超时
             _win_eval("newQuery(%s, %s)" % (json.dumps(badge), json.dumps(thumb or "")))
             runtime.has_content["v"] = True
         except Exception:
@@ -116,7 +148,9 @@ def side_render():
             wait_win_ready(runtime.side)
             with runtime.side_lock:
                 snapshot = json.dumps(runtime.side_cards, ensure_ascii=True)
-            runtime.side.evaluate_js("render(%s)" % snapshot)
+            v, err = eval_safe(runtime.side, "(function(){ render(%s); return 'ok'; })()" % snapshot)
+            if err is not None or v != "ok":
+                log_err("相关小窗写入失败: %s" % err)
     except Exception:
         log_err("side_render:\n" + traceback.format_exc())
 

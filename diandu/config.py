@@ -7,6 +7,7 @@ import json
 import os
 import shutil
 import sys
+import tempfile
 import traceback
 from datetime import datetime
 
@@ -19,7 +20,8 @@ CONFIG_PATH = os.path.join(APP_DIR, "config.json")
 CONFIG_EXAMPLE = os.path.join(APP_DIR, "config.example.json")
 HISTORY_DIR = os.path.join(APP_DIR, "history")
 ERR_LOG = os.path.join(APP_DIR, "err.log")
-DROP_FILE = os.path.join(APP_DIR, "drop.txt")   # 拖放投递:由新实例写给正在运行的实例
+# 拖放/唤起投递:固定放系统临时目录,保证源码版与任意位置的 exe 副本互通
+DROP_FILE = os.path.join(tempfile.gettempdir(), "jingjingbao_dianduji_drop.json")
 
 DEFAULT_CONFIG = {
     "api_base": "https://open.bigmodel.cn/api/paas/v4",

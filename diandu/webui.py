@@ -10,6 +10,48 @@ RENDER_JS 是共享的渲染工具(tests/run_render_test.js 会从本文件提�
 """
 from . import __version__
 
+import base64
+import os
+import re
+
+_ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
+
+
+def _vendor_html():
+    """内联本地 marked / KaTeX / 字体(离线可用、页面即刻就绪,不依赖 CDN)。
+
+    资源缺失时退回 CDN 引用,保证仍可运行。
+    """
+    try:
+        def read(name):
+            with open(os.path.join(_ASSETS, name), encoding="utf-8") as f:
+                return f.read()
+
+        css = read("katex.min.css")
+
+        def font_data(m):
+            fn = m.group(1)
+            try:
+                with open(os.path.join(_ASSETS, "fonts", fn), "rb") as f:
+                    b64 = base64.b64encode(f.read()).decode()
+                return 'url(data:font/woff2;base64,%s) format("woff2")' % b64
+            except Exception:
+                return m.group(0)
+
+        css = re.sub(r'url\(fonts/([\w\-.]+\.woff2)\)\s*format\("woff2"\)', font_data, css)
+        css = re.sub(r',\s*url\(fonts/[\w\-.]+\.(?:woff|ttf)\)\s*format\("[a-z]+"\)', "", css)
+        js = "\n".join(read(n) for n in ("marked.min.js", "katex.min.js", "auto-render.min.js"))
+        return "<style>%s</style>\n<script>%s</script>" % (css, js)
+    except Exception:
+        return (
+            '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">\n'
+            '<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>\n'
+            '<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>\n'
+            '<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>')
+
+
+_VENDOR = _vendor_html()
+
 RENDER_JS = r"""/*==RENDER-JS-BEGIN==*/
 function escHtml(s){
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -120,10 +162,7 @@ _MAIN_HTML = r"""<!DOCTYPE html>
 <html lang="zh">
 <head>
 <meta charset="utf-8">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
-<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+__VENDOR__
 <style>
 __THEME__
   #bar{display:flex;align-items:center;gap:8px;padding:9px 12px;flex-wrap:wrap;
@@ -219,10 +258,7 @@ _SIDE_HTML = r"""<!DOCTYPE html>
 <html lang="zh">
 <head>
 <meta charset="utf-8">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
-<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+__VENDOR__
 <style>
 __THEME__
   #bar{display:flex;align-items:center;gap:8px;padding:9px 12px;
@@ -304,7 +340,10 @@ window.__pageReady = true;
 </html>"""
 
 MAIN_HTML = (_MAIN_HTML
+             .replace("__VENDOR__", _VENDOR)
              .replace("__THEME__", _THEME_CSS)
              .replace("__RENDER_JS__", RENDER_JS)
              .replace("__VERSION__", __version__))
-SIDE_HTML = _SIDE_HTML.replace("__THEME__", _THEME_CSS).replace("__RENDER_JS__", RENDER_JS)
+SIDE_HTML = (_SIDE_HTML
+             .replace("__VENDOR__", _VENDOR)
+             .replace("__THEME__", _THEME_CSS)).replace("__RENDER_JS__", RENDER_JS)

@@ -8,6 +8,7 @@ python -m PyInstaller --noconfirm --clean --windowed --onefile ^
   --name PaperPointReader --icon assets\icon.ico ^
   --hidden-import webview.platforms.winforms --hidden-import webview.platforms.edgechromium ^
   --collect-all clr_loader --collect-all pypdfium2 --collect-all tkinterdnd2 ^
+  --add-data "diandussets;diandussets" ^
   --exclude-module PyQt5 --exclude-module PyQt6 --exclude-module PySide2 --exclude-module PySide6 ^
   --exclude-module qtpy ^
   --exclude-module webview.platforms.qt --exclude-module webview.platforms.cef ^

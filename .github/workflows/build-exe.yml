@@ -30,6 +30,7 @@ jobs:
           --hidden-import webview.platforms.winforms
           --hidden-import webview.platforms.edgechromium
           --collect-all clr_loader --collect-all pypdfium2 --collect-all tkinterdnd2
+          --add-data "diandu/assets;diandu/assets"
           --exclude-module PyQt5 --exclude-module PyQt6 --exclude-module PySide2
           --exclude-module PySide6 --exclude-module qtpy
           --exclude-module webview.platforms.qt --exclude-module webview.platforms.cef

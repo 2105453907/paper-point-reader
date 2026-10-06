@@ -56,6 +56,8 @@ python tests/test_mousehook.py  # 测试鼠标侧键钩子(Windows)
 | `Esc` | 隐藏弹窗(程序退到托盘继续运行) |
 | 托盘右键 | 启用/暂停(勾选项) · 显示窗口 · 相关小窗 · 设置 · 历史 · 退出 |
 
+**桌面启动图标**:运行 `python tools/make_shortcut.py` 即可在桌面创建带图标的「文献点读机」快捷方式(源码运行方式);打包版直接右键 exe 发送到桌面即可。重复启动不会双开——已有实例在运行时只会弹提示,并把焦点指向托盘。
+
 弹窗按钮:**复制** / **再细讲** / **相关**(开关侧窗) / **设置** / **隐藏**。
 
 ## ⚙️ 配置(`config.json`)
@@ -91,6 +93,7 @@ diandu/
   inputs.py             WH_MOUSE_LL 侧键钩子 + 键盘热键
   trayicon.py           托盘
 tools/make_icon.py      生成图标
+tools/make_shortcut.py  在桌面创建启动快捷方式
 tests/test_mousehook.py 侧键钩子自测
 build_exe.bat           一键 PyInstaller 打包
 .github/workflows/      推 tag 自动构建 exe 并附到 Release
@@ -111,7 +114,7 @@ build_exe.bat
 - **划词拿不到文字**:该 PDF 禁止复制,改用圈选(侧键1)。
 - **侧键按下后浏览器还是后退**:钩子未装上,看 `err.log` 后重启程序。
 - **多显示器**:目前圈选/弹窗只支持主屏;高分屏已做 DPI 适配。
-- **开机自启**:`Win+R` → `shell:startup`,放入 `启动点读机.bat` 的快捷方式。
+- **开机自启**:`Win+R` → `shell:startup`,把桌面上的「文献点读机」快捷方式(或 `启动点读机.bat`)放进去即可。
 
 ## ⚠️ 已知限制与说明
 

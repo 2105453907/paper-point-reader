@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """应用装配:命令行入口、窗口创建、输入/托盘线程启动。"""
+import ctypes
 import sys
 import threading
 import traceback
@@ -13,6 +14,28 @@ from . import APP_NAME, __version__
 from . import bridge, config, inputs, runtime, trayicon, webui, win32util, windows
 from .config import load_config, log_err
 from .llm import test_api
+
+_MUTEX = None  # 命名互斥体句柄,保持存活以标记"已有实例在运行"
+
+
+def _single_instance_guard():
+    """已有实例在运行时,弹提示并返回 False(本次启动放弃)。"""
+    global _MUTEX
+    ERROR_ALREADY_EXISTS = 183
+    _MUTEX = ctypes.windll.kernel32.CreateMutexW(None, False, "PaperPointReader_SingleInstance")
+    if ctypes.windll.kernel32.GetLastError() == ERROR_ALREADY_EXISTS:
+        try:
+            ctypes.windll.user32.MessageBoxTimeoutW(
+                0,
+                "文献点读机已经在运行啦,请看系统托盘(蓝色“读”图标)。\n"
+                "想让它停下:托盘右键「启用点读机」取消勾选,或按 Ctrl+Alt+P。",
+                APP_NAME,
+                0x40 | 0x10000 | 0x40000,  # 信息图标 | 置前 | 置顶
+                0, 8000)                   # 8 秒后自动消失,不挡事
+        except Exception:
+            pass
+        return False
+    return True
 
 
 def check(cfg):
@@ -48,6 +71,9 @@ def main(argv=None):
         return
     if "--test-api" in argv:
         test_api(cfg)
+        return
+
+    if not _single_instance_guard():
         return
 
     runtime.api = bridge.Api(cfg)

@@ -26,7 +26,7 @@ _MAIN_HTML = """<!DOCTYPE html>
   #thumbbox{display:none;padding:0 14px 6px;}
   #thumb{width:100%;border:1px solid #e5e7eb;border-radius:8px;max-height:140px;
     object-fit:contain;background:#fff;}
-  #c{padding:6px 16px 24px;font-size:14px;line-height:1.75;overflow-wrap:break-word;}
+  #c{padding:6px 16px 84px;font-size:14px;line-height:1.75;overflow-wrap:break-word;}
   #c h1,#c h2,#c h3{font-size:1.05em;border-bottom:1px solid #eee;padding-bottom:2px;}
   #c pre{background:#f3f4f6;padding:10px;border-radius:8px;overflow:auto;font-size:12.5px;}
   #c code{background:#f3f4f6;padding:1px 4px;border-radius:4px;font-size:12.5px;}
@@ -34,6 +34,16 @@ _MAIN_HTML = """<!DOCTYPE html>
   .katex{font-size:1.02em;}
   .dots::after{content:"";animation:dots 1.2s steps(4,end) infinite;}
   @keyframes dots{0%{content:""}25%{content:"·"}50%{content:"··"}75%{content:"···"}}
+  #askbar{position:fixed;left:0;right:0;bottom:0;display:flex;gap:8px;padding:10px 12px;
+    background:#ffffff;border-top:1px solid #e5e7eb;box-sizing:border-box;}
+  #ask{flex:1;border:1px solid #d1d5db;border-radius:8px;padding:8px 10px;font-size:13px;
+    font-family:inherit;outline:none;min-width:0;}
+  #ask:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.15);}
+  #askbtn{border:none;border-radius:8px;background:#2563eb;color:#fff;font-size:13px;
+    padding:8px 16px;cursor:pointer;white-space:nowrap;}
+  #askbtn:hover{background:#1d4ed8;}
+  .askq{background:#eff6ff;border-left:3px solid #2563eb;padding:6px 10px;border-radius:6px;
+    margin:10px 0;font-weight:600;color:#1e3a8a;}
 </style>
 </head>
 <body>
@@ -49,6 +59,11 @@ _MAIN_HTML = """<!DOCTYPE html>
 <div id="thumbbox"><img id="thumb" alt=""></div>
 <div id="status">正在讲解<span class="dots"></span></div>
 <div id="c"></div>
+<div id="askbar">
+  <input id="ask" type="text" autocomplete="off"
+         placeholder="就这里追问,例如:这个平方为什么要平方?(回车发送,按 / 聚焦)">
+  <button id="askbtn" onclick="askSend()">问</button>
+</div>
 <script>
 const c = document.getElementById('c');
 const status = document.getElementById('status');
@@ -80,6 +95,22 @@ function update(text, final){
 }
 window.addEventListener('keydown', e=>{
   if(e.key==='Escape'){ try{pywebview.api.hide();}catch(err){} }
+});
+function askSend(){
+  const el = document.getElementById('ask');
+  const q = (el.value || '').trim();
+  if(!q) return;
+  el.value = '';
+  try{ pywebview.api.ask(q); }catch(e){}
+}
+document.getElementById('ask').addEventListener('keydown', function(e){
+  if(e.key === 'Enter'){ e.preventDefault(); askSend(); }
+});
+window.addEventListener('keydown', function(e){
+  if(e.key === '/' && document.activeElement !== document.getElementById('ask')){
+    e.preventDefault();
+    document.getElementById('ask').focus();
+  }
 });
 window.__pageReady = true;
 </script>

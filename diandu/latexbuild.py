@@ -166,6 +166,7 @@ def rebuild_flow(cfg, path):
         windows.popup_update("正在用 xelatex 编译(两遍)…", False)
         ok, tail = _compile(xelatex, outdir, base)
         pdf_path = os.path.join(outdir, base + ".pdf")
+        api = runtime.api
         if ok and os.path.exists(pdf_path):
             try:
                 os.startfile(pdf_path)
@@ -178,9 +179,13 @@ def rebuild_flow(cfg, path):
             windows.popup_update(msg, True)
             actions.add_card(cfg, int(time.time()) % 1000000, "🧩 " + name + " (LaTeX)",
                              "", msg, "", auto_related=False)
+            if api is not None:
+                api.display = msg
             return tex_path
         msg = "**编译失败( .tex 已生成 )**\n\n`%s`\n\n```\n%s\n```" % (tex_path, tail[-1200:])
         windows.popup_update(msg, True)
+        if api is not None:
+            api.display = msg
         return tex_path
     except Exception:
         log_err(traceback.format_exc())

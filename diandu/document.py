@@ -312,11 +312,21 @@ def read_document_flow(cfg, path):
 
         windows.popup_update(full, True)
         saved = _save_reading(name, full)
+        shown = full
         if saved:
-            windows.popup_update(full + "\n\n---\n\n*(完整结果已保存:%s,并已放入「相关小窗」)*"
-                                  % saved, True)
-        actions.add_card(cfg, int(time.time()) % 1000000, "📄 " + name, thumb, full,
-                         "", auto_related=False)
+            shown = full + "\n\n---\n\n*(完整结果已保存:%s,并已放入「相关小窗」)*" % saved
+            windows.popup_update(shown, True)
+        cid = int(time.time()) % 1000000
+        actions.add_card(cfg, cid, "📄 " + name, thumb, full, "", auto_related=False)
+        api = runtime.api
+        if api is not None:   # 通读完成后可直接在输入框里追问整篇论文
+            api.display = shown
+            api.card_id = cid
+            api.base_msgs = [
+                {"role": "system", "content": prompts.SYSTEM_PROMPT},
+                {"role": "user", "content":
+                 "下面是我对论文《%s》的通读报告,请基于它回答我接下来的问题:\n\n%s"
+                 % (name, full[:20000])}]
         return full
     except Exception:
         log_err(traceback.format_exc())

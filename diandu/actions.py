@@ -106,10 +106,12 @@ def start_chat(cfg, msgs, badge, thumb="", base_msgs=None, title="", source_note
     api.badge = badge
     api.thumb = thumb
     api.card_id = update_card if update_card is not None else seq
+    api.display = ""            # 新一轮点读:追问前缀清零
     windows.popup_new_query(badge, thumb)
 
     def on_done(buf):
         api.answer = buf
+        api.display = buf
         windows.popup_update(buf, True)
         save_history(cfg, badge, thumb, buf)
         if update_card is not None and update_side_card_main(update_card, buf):
